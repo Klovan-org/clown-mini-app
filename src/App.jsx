@@ -244,6 +244,7 @@ function EditOtherTab() {
   const [saving, setSaving] = useState(false)
   const [selectedUserId, setSelectedUserId] = useState('')
   const [editStatus, setEditStatus] = useState('')
+  const [editLevel, setEditLevel] = useState(0)
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
@@ -264,15 +265,17 @@ function EditOtherTab() {
     fetchUsers()
   }, [fetchUsers])
 
-  // When user is selected, load their current status
+  // When user is selected, load their current status and level
   useEffect(() => {
     if (selectedUserId) {
       const user = users.find(u => String(u.telegram_id) === selectedUserId)
       if (user) {
         setEditStatus(user.status_message || '')
+        setEditLevel(user.level ?? 0)
       }
     } else {
       setEditStatus('')
+      setEditLevel(0)
     }
   }, [selectedUserId, users])
 
@@ -305,7 +308,8 @@ function EditOtherTab() {
         },
         body: JSON.stringify({
           target_telegram_id: selectedUserId,
-          status_message: editStatus.trim() || null
+          status_message: editStatus.trim() || null,
+          level: editLevel
         })
       })
 
@@ -318,7 +322,7 @@ function EditOtherTab() {
       // Update local state
       setUsers(prev => prev.map(u =>
         String(u.telegram_id) === selectedUserId
-          ? { ...u, status_message: editStatus.trim() || null }
+          ? { ...u, status_message: editStatus.trim() || null, level: editLevel }
           : u
       ))
 
@@ -345,7 +349,7 @@ function EditOtherTab() {
   return (
     <div className="max-w-md mx-auto p-4 pb-20">
       <div className="bg-gray-800/80 rounded-2xl p-6 border border-gray-700 shadow-lg">
-        <h3 className="text-lg font-semibold text-white mb-4">✏️ Uredi status drugog klovna</h3>
+        <h3 className="text-lg font-semibold text-white mb-4">✏️ Uredi drugog klovna</h3>
 
         {/* User selector */}
         <div className="mb-4">
@@ -371,7 +375,7 @@ function EditOtherTab() {
         {selectedUser && (
           <div className="mb-4 p-4 bg-gray-700/50 rounded-xl border border-gray-600">
             <div className="flex items-center gap-3">
-              <ClownImage level={selectedUser.level ?? 0} size="md" />
+              <ClownImage level={editLevel} size="md" />
               <div>
                 <div className="text-white font-medium">
                   {selectedUser.clown_name || selectedUser.first_name || selectedUser.username || 'Klovn'}
@@ -383,6 +387,37 @@ function EditOtherTab() {
                   <div className="text-gray-300 text-sm">📍 {selectedUser.location}</div>
                 )}
               </div>
+            </div>
+
+            {/* Level controls */}
+            <div className="flex items-center justify-center gap-3 mt-4">
+              <button
+                onClick={() => setEditLevel(prev => Math.max(0, prev - 1))}
+                disabled={editLevel <= 0}
+                className={`w-12 h-12 rounded-xl font-bold text-xl transition-all ${
+                  editLevel <= 0
+                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                    : 'bg-gray-700 hover:bg-gray-600 text-white border border-gray-600'
+                }`}
+              >
+                −
+              </button>
+
+              <div className="px-5 py-2 bg-orange-600 text-white font-bold rounded-xl min-w-[90px] text-center">
+                LVL {editLevel}
+              </div>
+
+              <button
+                onClick={() => setEditLevel(prev => Math.min(MAX_LEVEL, prev + 1))}
+                disabled={editLevel >= MAX_LEVEL}
+                className={`w-12 h-12 rounded-xl font-bold text-xl transition-all ${
+                  editLevel >= MAX_LEVEL
+                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg'
+                }`}
+              >
+                +
+              </button>
             </div>
           </div>
         )}
