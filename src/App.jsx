@@ -237,6 +237,198 @@ function DashboardTab() {
   )
 }
 
+// Edit other clown tab component
+function EditOtherTab() {
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [selectedUserId, setSelectedUserId] = useState('')
+  const [editStatus, setEditStatus] = useState('')
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/users`)
+      if (!res.ok) throw new Error('Failed to fetch users')
+      const data = await res.json()
+      setUsers(data)
+    } catch (err) {
+      console.error('Fetch users error:', err)
+      showAlert('Greška pri učitavanju korisnika')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchUsers()
+  }, [fetchUsers])
+
+  // When user is selected, load their current status
+  useEffect(() => {
+    if (selectedUserId) {
+      const user = users.find(u => String(u.telegram_id) === selectedUserId)
+      if (user) {
+        setEditStatus(user.status_message || '')
+      }
+    } else {
+      setEditStatus('')
+    }
+  }, [selectedUserId, users])
+
+  const selectedUser = users.find(u => String(u.telegram_id) === selectedUserId)
+
+  const handleSaveStatus = async () => {
+    if (!selectedUserId) {
+      showAlert('Molimo izaberi korisnika')
+      return
+    }
+
+    const initData = getTgInitData()
+    if (!initData) {
+      showAlert('Telegram WebApp nije dostupan')
+      return
+    }
+
+    if (editStatus.length > MAX_TEXT_LENGTH) {
+      showAlert(`Status je predugačak (max ${MAX_TEXT_LENGTH} karaktera)`)
+      return
+    }
+
+    setSaving(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/update-user-status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData
+        },
+        body: JSON.stringify({
+          target_telegram_id: selectedUserId,
+          status_message: editStatus.trim() || null
+        })
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save status')
+      }
+
+      // Update local state
+      setUsers(prev => prev.map(u =>
+        String(u.telegram_id) === selectedUserId
+          ? { ...u, status_message: editStatus.trim() || null }
+          : u
+      ))
+
+      showAlert('Status sačuvan!')
+    } catch (err) {
+      console.error('Save status error:', err)
+      showAlert(err.message || 'Greška pri čuvanju statusa')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-24">
+        <svg className="animate-spin h-8 w-8 text-orange-500" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-md mx-auto p-4 pb-20">
+      <div className="bg-gray-800/80 rounded-2xl p-6 border border-gray-700 shadow-lg">
+        <h3 className="text-lg font-semibold text-white mb-4">✏️ Uredi status drugog klovna</h3>
+
+        {/* User selector */}
+        <div className="mb-4">
+          <label className="block text-gray-400 text-sm mb-2">👤 Izaberi klovna</label>
+          <select
+            value={selectedUserId}
+            onChange={(e) => setSelectedUserId(e.target.value)}
+            className="w-full bg-gray-700 border border-gray-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-orange-500 transition-colors appearance-none cursor-pointer"
+          >
+            <option value="">-- Izaberi korisnika --</option>
+            {users.map(user => {
+              const displayName = user.clown_name || user.first_name || user.username || 'Klovn'
+              return (
+                <option key={user.telegram_id} value={String(user.telegram_id)}>
+                  {displayName} {user.username ? `(@${user.username})` : ''} - Lv.{user.level ?? 0}
+                </option>
+              )
+            })}
+          </select>
+        </div>
+
+        {/* Selected user preview */}
+        {selectedUser && (
+          <div className="mb-4 p-4 bg-gray-700/50 rounded-xl border border-gray-600">
+            <div className="flex items-center gap-3">
+              <ClownImage level={selectedUser.level ?? 0} size="md" />
+              <div>
+                <div className="text-white font-medium">
+                  {selectedUser.clown_name || selectedUser.first_name || selectedUser.username || 'Klovn'}
+                </div>
+                {selectedUser.username && (
+                  <div className="text-gray-400 text-sm">@{selectedUser.username}</div>
+                )}
+                {selectedUser.location && (
+                  <div className="text-gray-300 text-sm">📍 {selectedUser.location}</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Status message */}
+        <div className="mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <label className="text-gray-400 text-sm">💬 Novi status</label>
+            <span className={`text-xs ${editStatus.length > MAX_TEXT_LENGTH ? 'text-red-500' : 'text-gray-500'}`}>
+              {editStatus.length}/{MAX_TEXT_LENGTH}
+            </span>
+          </div>
+          <textarea
+            value={editStatus}
+            onChange={(e) => setEditStatus(e.target.value)}
+            placeholder="Upiši novi status za ovog klovna..."
+            maxLength={MAX_TEXT_LENGTH}
+            rows={3}
+            disabled={!selectedUserId}
+            className="w-full bg-gray-700 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+        </div>
+
+        {/* Save button */}
+        <button
+          onClick={handleSaveStatus}
+          disabled={saving || !selectedUserId}
+          className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-600 disabled:to-gray-600 py-3 rounded-xl font-semibold text-white transition-all shadow-lg hover:shadow-orange-500/25 disabled:cursor-not-allowed"
+        >
+          {saving ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Čuvam...
+            </span>
+          ) : (
+            '💾 Sačuvaj status'
+          )}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // Profile tab component
 function ProfileTab() {
   const [loading, setLoading] = useState(false)
@@ -526,7 +718,9 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-orange-900/30">
       {/* Content */}
       <div className="pt-2">
-        {activeTab === 'dashboard' ? <DashboardTab /> : <ProfileTab />}
+        {activeTab === 'dashboard' && <DashboardTab />}
+        {activeTab === 'edit-other' && <EditOtherTab />}
+        {activeTab === 'profile' && <ProfileTab />}
       </div>
 
       {/* Sticky tab navigation */}
@@ -542,6 +736,17 @@ export default function App() {
           >
             <span className="text-xl">📊</span>
             <div className="text-xs mt-1">Dashboard</div>
+          </button>
+          <button
+            onClick={() => setActiveTab('edit-other')}
+            className={`flex-1 py-4 text-center font-medium transition-colors ${
+              activeTab === 'edit-other'
+                ? 'text-orange-500 bg-orange-500/10'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <span className="text-xl">✏️</span>
+            <div className="text-xs mt-1">Uredi klovna</div>
           </button>
           <button
             onClick={() => setActiveTab('profile')}
