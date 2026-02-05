@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 const MAX_LEVEL = 6
@@ -888,6 +888,12 @@ function DuelTab() {
   const [battleState, setBattleState] = useState('idle') // idle | fighting | done
   const [winner, setWinner] = useState(null)
   const [battleLog, setBattleLog] = useState([])
+  const timerRef = useRef(null)
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [])
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
@@ -945,14 +951,20 @@ function DuelTab() {
       return
     }
 
+    // Clear any running timer
+    if (timerRef.current) clearTimeout(timerRef.current)
+
     setBattleState('fighting')
     setWinner(null)
     setBattleLog([])
 
+    // Pre-compute everything before animation
     const rounds = 3
     const log = []
     let score1 = 0
     let score2 = 0
+    const name1 = getName(user1)
+    const name2 = getName(user2)
 
     for (let i = 0; i < rounds; i++) {
       const atk1 = attacks[Math.floor(Math.random() * attacks.length)]
@@ -960,25 +972,28 @@ function DuelTab() {
       const power1 = (user1.level ?? 0) + Math.random() * 6
       const power2 = (user2.level ?? 0) + Math.random() * 6
 
-      log.push({ round: i + 1, name: getName(user1), attack: atk1, power: power1.toFixed(1) })
-      log.push({ round: i + 1, name: getName(user2), attack: atk2, power: power2.toFixed(1) })
+      log.push({ round: i + 1, name: name1, attack: atk1, power: power1.toFixed(1) })
+      log.push({ round: i + 1, name: name2, attack: atk2, power: power2.toFixed(1) })
 
       if (power1 >= power2) score1++
       else score2++
     }
 
-    let step = 0
-    const interval = setInterval(() => {
+    const finalWinner = score1 > score2 ? user1 : score2 > score1 ? user2 : (Math.random() > 0.5 ? user1 : user2)
+
+    // Animate log entries one by one using setTimeout chain
+    const showEntry = (step) => {
       if (step < log.length) {
         setBattleLog(prev => [...prev, log[step]])
-        step++
+        timerRef.current = setTimeout(() => showEntry(step + 1), 600)
       } else {
-        clearInterval(interval)
-        const finalWinner = score1 > score2 ? user1 : score2 > score1 ? user2 : (Math.random() > 0.5 ? user1 : user2)
         setWinner(finalWinner)
         setBattleState('done')
+        timerRef.current = null
       }
-    }, 600)
+    }
+
+    timerRef.current = setTimeout(() => showEntry(0), 400)
   }
 
   if (loading) {
