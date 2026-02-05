@@ -738,6 +738,27 @@ function SpinTab() {
   const [selectedName, setSelectedName] = useState(null)
   const [isSpinning, setIsSpinning] = useState(false)
   const [highlightIndex, setHighlightIndex] = useState(-1)
+  const [spinStep, setSpinStep] = useState(0)
+  const [spinTotal, setSpinTotal] = useState(0)
+  const [spinNames, setSpinNames] = useState([])
+
+  // Animate spin via useEffect - React manages the timer lifecycle
+  useEffect(() => {
+    if (!isSpinning || spinStep >= spinTotal) return
+    const delay = 60 + spinStep * 8
+    const timer = setTimeout(() => {
+      const idx = (spinStep + 1) % spinNames.length
+      setHighlightIndex(idx)
+      if (spinStep + 1 >= spinTotal) {
+        setSelectedName(spinNames[idx])
+        setIsSpinning(false)
+        setHighlightIndex(-1)
+      } else {
+        setSpinStep(prev => prev + 1)
+      }
+    }, delay)
+    return () => clearTimeout(timer)
+  }, [isSpinning, spinStep, spinTotal, spinNames])
 
   const addName = () => {
     const trimmed = inputValue.trim()
@@ -762,26 +783,12 @@ function SpinTab() {
       showAlert('Dodaj bar 2 polja da bi zavrteo!')
       return
     }
-
     setSelectedName(null)
+    setHighlightIndex(0)
+    setSpinNames([...names])
+    setSpinTotal(20 + Math.floor(Math.random() * 15))
+    setSpinStep(0)
     setIsSpinning(true)
-
-    const totalSteps = 20 + Math.floor(Math.random() * 15)
-    let step = 0
-    let current = 0
-
-    const interval = setInterval(() => {
-      current = (current + 1) % names.length
-      setHighlightIndex(current)
-      step++
-
-      if (step >= totalSteps) {
-        clearInterval(interval)
-        setHighlightIndex(-1)
-        setSelectedName(names[current])
-        setIsSpinning(false)
-      }
-    }, 60 + step * 8)
   }
 
   return (
@@ -888,6 +895,24 @@ function DuelTab() {
   const [battleState, setBattleState] = useState('idle') // idle | fighting | done
   const [winner, setWinner] = useState(null)
   const [battleLog, setBattleLog] = useState([])
+  const [fullLog, setFullLog] = useState([])
+  const [logStep, setLogStep] = useState(0)
+  const [precomputedWinner, setPrecomputedWinner] = useState(null)
+
+  // Animate battle log via useEffect
+  useEffect(() => {
+    if (battleState !== 'fighting' || fullLog.length === 0) return
+    if (logStep >= fullLog.length) {
+      setWinner(precomputedWinner)
+      setBattleState('done')
+      return
+    }
+    const timer = setTimeout(() => {
+      setBattleLog(prev => [...prev, fullLog[logStep]])
+      setLogStep(prev => prev + 1)
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [battleState, logStep, fullLog, precomputedWinner])
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
@@ -945,14 +970,13 @@ function DuelTab() {
       return
     }
 
-    setBattleState('fighting')
-    setWinner(null)
-    setBattleLog([])
-
+    // Pre-compute everything before animation
     const rounds = 3
     const log = []
     let score1 = 0
     let score2 = 0
+    const name1 = getName(user1)
+    const name2 = getName(user2)
 
     for (let i = 0; i < rounds; i++) {
       const atk1 = attacks[Math.floor(Math.random() * attacks.length)]
@@ -960,25 +984,22 @@ function DuelTab() {
       const power1 = (user1.level ?? 0) + Math.random() * 6
       const power2 = (user2.level ?? 0) + Math.random() * 6
 
-      log.push({ round: i + 1, name: getName(user1), attack: atk1, power: power1.toFixed(1) })
-      log.push({ round: i + 1, name: getName(user2), attack: atk2, power: power2.toFixed(1) })
+      log.push({ round: i + 1, name: name1, attack: atk1, power: power1.toFixed(1) })
+      log.push({ round: i + 1, name: name2, attack: atk2, power: power2.toFixed(1) })
 
       if (power1 >= power2) score1++
       else score2++
     }
 
-    let step = 0
-    const interval = setInterval(() => {
-      if (step < log.length) {
-        setBattleLog(prev => [...prev, log[step]])
-        step++
-      } else {
-        clearInterval(interval)
-        const finalWinner = score1 > score2 ? user1 : score2 > score1 ? user2 : (Math.random() > 0.5 ? user1 : user2)
-        setWinner(finalWinner)
-        setBattleState('done')
-      }
-    }, 600)
+    const computedWinner = score1 > score2 ? user1 : score2 > score1 ? user2 : (Math.random() > 0.5 ? user1 : user2)
+
+    // Set all state, useEffect handles animation
+    setBattleLog([])
+    setFullLog(log)
+    setLogStep(0)
+    setPrecomputedWinner(computedWinner)
+    setWinner(null)
+    setBattleState('fighting')
   }
 
   if (loading) {
