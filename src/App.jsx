@@ -879,6 +879,234 @@ function SpinTab() {
   )
 }
 
+// Duel tab component - clown vs clown battle
+function DuelTab() {
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [fighter1, setFighter1] = useState('')
+  const [fighter2, setFighter2] = useState('')
+  const [battleState, setBattleState] = useState('idle') // idle | fighting | done
+  const [winner, setWinner] = useState(null)
+  const [battleLog, setBattleLog] = useState([])
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/users`)
+      if (!res.ok) throw new Error('Failed to fetch')
+      const data = await res.json()
+      setUsers(data)
+    } catch (err) {
+      console.error('Fetch users error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchUsers()
+  }, [fetchUsers])
+
+  const user1 = users.find(u => String(u.telegram_id) === fighter1)
+  const user2 = users.find(u => String(u.telegram_id) === fighter2)
+
+  const getName = (user) => user?.clown_name || user?.first_name || user?.username || 'Klovn'
+
+  const attacks = [
+    'baca tortu u lice',
+    'prska vodom iz cveta',
+    'gazi ogromnom cipelom',
+    'trubi crvenim nosom',
+    'zaplice se u sopstvene pantalone',
+    'izvlaci beskonacnu maramu',
+    'pravi balon zivotinju kao oruzje',
+    'udara gumenom kokoskom',
+    'pusta konfete iz rukava',
+    'radi kolut napred i padne',
+  ]
+
+  const handleRandomPick = () => {
+    if (users.length < 2) return
+    const shuffled = [...users].sort(() => Math.random() - 0.5)
+    setFighter1(String(shuffled[0].telegram_id))
+    setFighter2(String(shuffled[1].telegram_id))
+    setBattleState('idle')
+    setWinner(null)
+    setBattleLog([])
+  }
+
+  const handleFight = () => {
+    if (!user1 || !user2) {
+      showAlert('Izaberi oba klovna!')
+      return
+    }
+    if (fighter1 === fighter2) {
+      showAlert('Klovn ne moze da se bori sam sa sobom!')
+      return
+    }
+
+    setBattleState('fighting')
+    setWinner(null)
+    setBattleLog([])
+
+    const rounds = 3
+    const log = []
+    let score1 = 0
+    let score2 = 0
+
+    for (let i = 0; i < rounds; i++) {
+      const atk1 = attacks[Math.floor(Math.random() * attacks.length)]
+      const atk2 = attacks[Math.floor(Math.random() * attacks.length)]
+      const power1 = (user1.level ?? 0) + Math.random() * 6
+      const power2 = (user2.level ?? 0) + Math.random() * 6
+
+      log.push({ round: i + 1, name: getName(user1), attack: atk1, power: power1.toFixed(1) })
+      log.push({ round: i + 1, name: getName(user2), attack: atk2, power: power2.toFixed(1) })
+
+      if (power1 >= power2) score1++
+      else score2++
+    }
+
+    let step = 0
+    const interval = setInterval(() => {
+      if (step < log.length) {
+        setBattleLog(prev => [...prev, log[step]])
+        step++
+      } else {
+        clearInterval(interval)
+        const finalWinner = score1 > score2 ? user1 : score2 > score1 ? user2 : (Math.random() > 0.5 ? user1 : user2)
+        setWinner(finalWinner)
+        setBattleState('done')
+      }
+    }, 600)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-24">
+        <svg className="animate-spin h-8 w-8 text-orange-500" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-md mx-auto p-4 pb-20">
+      <div className="bg-gray-800/80 rounded-2xl p-6 border border-gray-700 shadow-lg">
+        <h3 className="text-lg font-semibold text-white mb-1">⚔️ Clown Duel</h3>
+        <p className="text-gray-400 text-sm mb-4">Izaberi dva klovna i pusti ih da se bore!</p>
+
+        {/* Fighter selectors */}
+        <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center mb-4">
+          <div>
+            <label className="block text-gray-400 text-xs mb-1">Borac 1</label>
+            <select
+              value={fighter1}
+              onChange={(e) => { setFighter1(e.target.value); setBattleState('idle'); setWinner(null); setBattleLog([]) }}
+              className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-orange-500 transition-colors appearance-none"
+            >
+              <option value="">-- Izaberi --</option>
+              {users.map(u => (
+                <option key={u.telegram_id} value={String(u.telegram_id)}>
+                  {getName(u)} Lv.{u.level ?? 0}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="text-2xl text-orange-500 font-bold pt-5">VS</div>
+
+          <div>
+            <label className="block text-gray-400 text-xs mb-1">Borac 2</label>
+            <select
+              value={fighter2}
+              onChange={(e) => { setFighter2(e.target.value); setBattleState('idle'); setWinner(null); setBattleLog([]) }}
+              className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-orange-500 transition-colors appearance-none"
+            >
+              <option value="">-- Izaberi --</option>
+              {users.map(u => (
+                <option key={u.telegram_id} value={String(u.telegram_id)}>
+                  {getName(u)} Lv.{u.level ?? 0}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Fighter preview */}
+        {user1 && user2 && fighter1 !== fighter2 && (
+          <div className="flex items-center justify-around mb-4 p-4 bg-gray-700/50 rounded-xl border border-gray-600">
+            <div className="text-center">
+              <ClownImage level={user1.level ?? 0} size="lg" />
+              <div className="text-white font-medium text-sm mt-2">{getName(user1)}</div>
+              <div className="text-orange-400 text-xs">Lv.{user1.level ?? 0}</div>
+            </div>
+            <div className={`text-3xl ${battleState === 'fighting' ? 'animate-bounce' : ''}`}>⚔️</div>
+            <div className="text-center">
+              <ClownImage level={user2.level ?? 0} size="lg" />
+              <div className="text-white font-medium text-sm mt-2">{getName(user2)}</div>
+              <div className="text-orange-400 text-xs">Lv.{user2.level ?? 0}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Battle log */}
+        {battleLog.length > 0 && (
+          <div className="mb-4 space-y-1 max-h-48 overflow-y-auto">
+            {battleLog.map((entry, i) => (
+              <div key={i} className="text-sm px-3 py-1.5 bg-gray-700/30 rounded-lg">
+                <span className="text-orange-400">R{entry.round}</span>
+                {' '}
+                <span className="text-white font-medium">{entry.name}</span>
+                {' '}
+                <span className="text-gray-400">{entry.attack}</span>
+                {' '}
+                <span className="text-orange-300">({entry.power})</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Winner */}
+        {winner && battleState === 'done' && (
+          <div className="text-center py-4 mb-4 bg-gradient-to-r from-orange-500/20 to-orange-600/20 rounded-xl border border-orange-500/50">
+            <div className="text-3xl mb-1">🏆🤡🏆</div>
+            <div className="text-orange-400 text-sm">Pobednik duela:</div>
+            <div className="text-white text-2xl font-bold mt-1">{getName(winner)}</div>
+          </div>
+        )}
+
+        {/* Buttons */}
+        <div className="space-y-2">
+          <button
+            onClick={handleFight}
+            disabled={battleState === 'fighting' || !fighter1 || !fighter2 || fighter1 === fighter2}
+            className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
+              battleState === 'fighting'
+                ? 'bg-red-600 animate-pulse text-white'
+                : !fighter1 || !fighter2 || fighter1 === fighter2
+                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 text-white shadow-lg hover:shadow-red-500/25'
+            }`}
+          >
+            {battleState === 'fighting' ? '⚔️ Bore se...' : '⚔️ BORBA!'}
+          </button>
+
+          <button
+            onClick={handleRandomPick}
+            disabled={battleState === 'fighting' || users.length < 2}
+            className="w-full py-3 rounded-xl font-semibold text-sm bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-gray-300 transition-all border border-gray-600 disabled:cursor-not-allowed"
+          >
+            🎲 Nasumicni borci
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Main App component
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -905,6 +1133,7 @@ export default function App() {
         {activeTab === 'edit-other' && <EditOtherTab />}
         {activeTab === 'profile' && <ProfileTab />}
         {activeTab === 'spin' && <SpinTab />}
+        {activeTab === 'duel' && <DuelTab />}
       </div>
 
       {/* Sticky tab navigation */}
@@ -953,6 +1182,17 @@ export default function App() {
           >
             <span className="text-xl">🎰</span>
             <div className="text-xs mt-1">Spin</div>
+          </button>
+          <button
+            onClick={() => setActiveTab('duel')}
+            className={`flex-1 py-4 text-center font-medium transition-colors ${
+              activeTab === 'duel'
+                ? 'text-orange-500 bg-orange-500/10'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <span className="text-xl">⚔️</span>
+            <div className="text-xs mt-1">Duel</div>
           </button>
         </div>
       </nav>
