@@ -743,7 +743,7 @@ function SpinTab() {
     const trimmed = inputValue.trim()
     if (!trimmed) return
     if (names.includes(trimmed)) {
-      showAlert('To ime je vec dodato!')
+      showAlert('To polje je vec dodato!')
       return
     }
     setNames(prev => [...prev, trimmed])
@@ -759,7 +759,7 @@ function SpinTab() {
 
   const handleSpin = () => {
     if (names.length < 2) {
-      showAlert('Dodaj bar 2 imena da bi zavrteo!')
+      showAlert('Dodaj bar 2 polja da bi zavrteo!')
       return
     }
 
@@ -788,7 +788,7 @@ function SpinTab() {
     <div className="max-w-md mx-auto p-4 pb-20">
       <div className="bg-gray-800/80 rounded-2xl p-6 border border-gray-700 shadow-lg">
         <h3 className="text-lg font-semibold text-white mb-1">🎰 Clown Spin</h3>
-        <p className="text-gray-400 text-sm mb-4">Dodaj imena i zavrti da vidis ko je izabran!</p>
+        <p className="text-gray-400 text-sm mb-4">Dodaj polja i zavrti da vidis sta je izabrano!</p>
 
         {/* Add name input */}
         <div className="flex gap-2 mb-4">
@@ -797,7 +797,7 @@ function SpinTab() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addName()}
-            placeholder="Dodaj ime..."
+            placeholder="Dodaj polje..."
             maxLength={50}
             className="flex-1 bg-gray-700 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors"
           />
@@ -814,7 +814,7 @@ function SpinTab() {
         {names.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <div className="text-4xl mb-2">🤡</div>
-            <p>Nema imena. Dodaj nekog klovna!</p>
+            <p>Nema polja. Dodaj neko polje!</p>
           </div>
         ) : (
           <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
@@ -850,7 +850,7 @@ function SpinTab() {
         {selectedName && (
           <div className="text-center py-4 mb-4 bg-gradient-to-r from-orange-500/20 to-orange-600/20 rounded-xl border border-orange-500/50">
             <div className="text-3xl mb-1">🎉🤡🎉</div>
-            <div className="text-orange-400 text-sm">Izabran klovn:</div>
+            <div className="text-orange-400 text-sm">Izabrano polje:</div>
             <div className="text-white text-2xl font-bold mt-1">{selectedName}</div>
           </div>
         )}
@@ -872,7 +872,7 @@ function SpinTab() {
 
         {/* Counter */}
         <div className="text-center text-gray-500 text-xs mt-3">
-          {names.length} {names.length === 1 ? 'ime' : 'imena'} u igri
+          {names.length} {names.length === 1 ? 'polje' : 'polja'} u igri
         </div>
       </div>
     </div>
