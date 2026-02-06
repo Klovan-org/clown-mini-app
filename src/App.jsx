@@ -940,16 +940,16 @@ function DuelTab() {
   const attacks = [
     'prosipa pivo po stolu',
     'naruci rakiju i ne plati',
-    'baca casu od sanka',
-    'zapali cigaru protivniku u pici',
-    'proliva kafu po kosuljii',
+    'baca casu sa sanka',
     'nazdravlja i razbije casu',
-    'udara stolicom od plasticke',
     'baca kikiriki u oko',
     'pusta narodnjake na max',
     'naruci mezu i pojede sve sam',
     'zove konobara za protivnikov racun',
     'otpije tudje pivo kad ne gleda',
+    'salje pesmu sa posveta protivniku',
+    'naruci duplu rakiju i polije sto',
+    'ukrade protivniku stolicu',
   ]
 
   const handleRandomPick = () => {
