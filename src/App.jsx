@@ -947,9 +947,9 @@ function DuelTab() {
   const tgUser = getTgUser()
   const initData = getTgInitData()
 
-  const fetchLobby = useCallback(async () => {
+  const fetchLobby = useCallback(async (silent = false) => {
     if (!initData) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const res = await fetch(`${API_BASE}/api/duels?op=active`, {
         headers: { 'x-telegram-init-data': initData }
@@ -960,7 +960,7 @@ function DuelTab() {
     } catch (err) {
       console.error('Lobby fetch error:', err)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [initData])
 
@@ -992,7 +992,10 @@ function DuelTab() {
   }, [initData])
 
   useEffect(() => {
-    if (view === 'lobby') fetchLobby()
+    if (view !== 'lobby') return
+    fetchLobby()
+    const timer = setInterval(() => fetchLobby(true), 5000)
+    return () => clearInterval(timer)
   }, [view, fetchLobby])
 
   // Poll for updates when it's not my turn
