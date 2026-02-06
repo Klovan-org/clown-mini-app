@@ -947,9 +947,9 @@ function DuelTab() {
   const tgUser = getTgUser()
   const initData = getTgInitData()
 
-  const fetchLobby = useCallback(async (silent = false) => {
+  const fetchLobby = useCallback(async () => {
     if (!initData) return
-    if (!silent) setLoading(true)
+    setLoading(true)
     try {
       const res = await fetch(`${API_BASE}/api/duels?op=active`, {
         headers: { 'x-telegram-init-data': initData }
@@ -960,7 +960,7 @@ function DuelTab() {
     } catch (err) {
       console.error('Lobby fetch error:', err)
     } finally {
-      if (!silent) setLoading(false)
+      setLoading(false)
     }
   }, [initData])
 
@@ -992,21 +992,9 @@ function DuelTab() {
   }, [initData])
 
   useEffect(() => {
-    if (view !== 'lobby') return
-    fetchLobby()
-    const timer = setInterval(() => fetchLobby(true), 5000)
-    return () => clearInterval(timer)
+    if (view === 'lobby') fetchLobby()
   }, [view, fetchLobby])
 
-  // Poll for updates when it's not my turn
-  useEffect(() => {
-    if (view !== 'game' || !activeDuelId || !gameState) return
-    if (gameState.duel.status === 'finished') return
-    if (gameState.is_my_turn) return
-
-    const timer = setInterval(() => fetchGameState(activeDuelId), 3000)
-    return () => clearInterval(timer)
-  }, [view, activeDuelId, gameState, fetchGameState])
 
   const handleChallenge = async (opponentId) => {
     if (!initData) return
@@ -1271,8 +1259,16 @@ function DuelTab() {
     <div className="max-w-md mx-auto p-4 pb-20">
       {/* Header */}
       <div className="bg-gray-800/80 rounded-2xl p-4 border border-gray-700 shadow-lg mb-3">
-        <h3 className="text-lg font-semibold text-white mb-1">⚔️ Kafanski Duel</h3>
-        <p className="text-gray-400 text-sm">Izazovi klovna na duel u kafani!</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-1">⚔️ Kafanski Duel</h3>
+            <p className="text-gray-400 text-sm">Izazovi klovna na duel u kafani!</p>
+          </div>
+          <button onClick={fetchLobby} disabled={loading}
+            className="text-2xl hover:scale-110 transition-transform disabled:opacity-50">
+            {loading ? <svg className="animate-spin h-6 w-6 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg> : '🔄'}
+          </button>
+        </div>
       </div>
 
       {/* Incoming challenges */}
