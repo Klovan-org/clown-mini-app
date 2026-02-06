@@ -938,16 +938,18 @@ function DuelTab() {
   const getName = (user) => user?.clown_name || user?.first_name || user?.username || 'Klovn'
 
   const attacks = [
-    'baca tortu u lice',
-    'prska vodom iz cveta',
-    'gazi ogromnom cipelom',
-    'trubi crvenim nosom',
-    'zaplice se u sopstvene pantalone',
-    'izvlaci beskonacnu maramu',
-    'pravi balon zivotinju kao oruzje',
-    'udara gumenom kokoskom',
-    'pusta konfete iz rukava',
-    'radi kolut napred i padne',
+    'prosipa pivo po stolu',
+    'naruci rakiju i ne plati',
+    'baca casu od sanka',
+    'zapali cigaru protivniku u pici',
+    'proliva kafu po kosuljii',
+    'nazdravlja i razbije casu',
+    'udara stolicom od plasticke',
+    'baca kikiriki u oko',
+    'pusta narodnjake na max',
+    'naruci mezu i pojede sve sam',
+    'zove konobara za protivnikov racun',
+    'otpije tudje pivo kad ne gleda',
   ]
 
   const handleRandomPick = () => {
