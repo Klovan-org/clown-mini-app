@@ -1001,7 +1001,7 @@ function DuelTab() {
     if (gameState.duel.status === 'finished') return
     if (gameState.is_my_turn) return
 
-    const timer = setInterval(() => fetchGameState(activeDuelId), 10000)
+    const timer = setInterval(() => fetchGameState(activeDuelId), 1000)
     return () => clearInterval(timer)
   }, [view, activeDuelId, gameState, fetchGameState])
 
