@@ -995,6 +995,15 @@ function DuelTab() {
     if (view === 'lobby') fetchLobby()
   }, [view, fetchLobby])
 
+  // Poll for updates when it's not my turn (every 10s)
+  useEffect(() => {
+    if (view !== 'game' || !activeDuelId || !gameState) return
+    if (gameState.duel.status === 'finished') return
+    if (gameState.is_my_turn) return
+
+    const timer = setInterval(() => fetchGameState(activeDuelId), 10000)
+    return () => clearInterval(timer)
+  }, [view, activeDuelId, gameState, fetchGameState])
 
   const handleChallenge = async (opponentId) => {
     if (!initData) return
