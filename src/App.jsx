@@ -1488,6 +1488,7 @@ export default function App() {
             <span className="text-xl">🎰</span>
             <div className="text-xs mt-1">Spin</div>
           </button>
+          {/* Duel tab hidden temporarily
           <button
             onClick={() => setActiveTab('duel')}
             className={`flex-1 py-4 text-center font-medium transition-colors ${
@@ -1499,6 +1500,7 @@ export default function App() {
             <span className="text-xl">⚔️</span>
             <div className="text-xs mt-1">Duel</div>
           </button>
+          */}
           <button
             onClick={() => setActiveTab('autobus')}
             className={`flex-1 py-4 text-center font-medium transition-colors ${
