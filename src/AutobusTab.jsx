@@ -213,10 +213,10 @@ export default function AutobusTab() {
     if (view === 'lobby') fetchLobby()
   }, [view, fetchLobby])
 
-  // Polling
+  // Game polling - only during active gameplay
   useEffect(() => {
     if (view !== 'game' || !activeGameId || !gameState) return
-    if (gameState.game.status === 'finished') return
+    if (gameState.game.status !== 'active') return
 
     const isBusPhase = gameState.game.current_phase === 'bus'
     const isMyTurn = gameState.is_my_match_turn || gameState.is_bus_player
