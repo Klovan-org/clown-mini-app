@@ -222,7 +222,7 @@ export default function AutobusTab() {
     const isMyTurn = gameState.is_my_match_turn || gameState.is_bus_player
     if (isMyTurn) return // Don't poll when it's my turn
 
-    const interval = 1000
+    const interval = 500
     const timer = setInterval(() => fetchGameState(activeGameId), interval)
     return () => clearInterval(timer)
   }, [view, activeGameId, gameState, fetchGameState])
