@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import AutobusTab from './AutobusTab.jsx'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 const MAX_LEVEL = 6
@@ -1437,6 +1438,7 @@ export default function App() {
         {activeTab === 'profile' && <ProfileTab />}
         {activeTab === 'spin' && <SpinTab />}
         {activeTab === 'duel' && <DuelTab />}
+        {activeTab === 'autobus' && <AutobusTab />}
       </div>
 
       {/* Sticky tab navigation */}
@@ -1496,6 +1498,17 @@ export default function App() {
           >
             <span className="text-xl">⚔️</span>
             <div className="text-xs mt-1">Duel</div>
+          </button>
+          <button
+            onClick={() => setActiveTab('autobus')}
+            className={`flex-1 py-4 text-center font-medium transition-colors ${
+              activeTab === 'autobus'
+                ? 'text-orange-500 bg-orange-500/10'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <span className="text-xl">🚌</span>
+            <div className="text-xs mt-1">Autobus</div>
           </button>
         </div>
       </nav>
