@@ -40,8 +40,8 @@ function Card({ rank, suit, flipped = true, small = false, highlighted = false, 
         ${onClick && !disabled ? 'hover:scale-105 cursor-pointer active:scale-95' : ''}
         ${disabled ? 'opacity-50' : ''}`}
     >
-      <span className={`font-bold ${color} ${small ? 'text-xs' : 'text-sm'}`}>{rank}</span>
-      <span className={small ? 'text-xs' : 'text-sm'}>{suit}</span>
+      <span className={`font-bold ${color} ${small ? 'text-xs' : 'text-base'}`}>{rank || '?'}</span>
+      <span className={small ? 'text-xs' : 'text-sm'}>{suit || ''}</span>
     </button>
   )
 }
@@ -222,7 +222,7 @@ export default function AutobusTab() {
     const isMyTurn = gameState.is_my_match_turn || gameState.is_bus_player
     if (isMyTurn) return // Don't poll when it's my turn
 
-    const interval = isBusPhase ? 1000 : 2000
+    const interval = isBusPhase ? 3000 : 5000
     const timer = setInterval(() => fetchGameState(activeGameId), interval)
     return () => clearInterval(timer)
   }, [view, activeGameId, gameState, fetchGameState])
@@ -610,7 +610,6 @@ export default function AutobusTab() {
                   >
                     <option value="">-- Izaberi igraca --</option>
                     {gameState.players
-                      .filter(p => String(p.user_id) !== myId)
                       .map(p => (
                         <option key={p.user_id} value={String(p.user_id)}>
                           {getName(p)} (🍺 {p.drinks_received})
