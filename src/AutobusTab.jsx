@@ -737,7 +737,7 @@ export default function AutobusTab() {
                 </div>
                 <div className="text-gray-400 text-xs mb-2 truncate">{playerNames}</div>
                 <div className="flex gap-2">
-                  {isLobby && isCreator && (game.players || []).length >= 2 && (
+                  {isLobby && isCreator && (game.players || []).length >= 1 && (
                     <button onClick={() => handleStart(game.id)} disabled={acting}
                       className="flex-1 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs rounded-lg font-medium">
                       ▶️ Pokreni
