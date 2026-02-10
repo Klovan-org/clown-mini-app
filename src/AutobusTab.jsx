@@ -186,7 +186,6 @@ export default function AutobusTab() {
   const [gameState, setGameState] = useState(null)
   const [activeGameId, setActiveGameId] = useState(null)
   const [selectedCard, setSelectedCard] = useState(null)
-  const [selectedTarget, setSelectedTarget] = useState('')
   const [toast, setToast] = useState(null)
 
   const socketRef = useRef(null)
@@ -308,7 +307,6 @@ export default function AutobusTab() {
       setActiveGameId(res.gameId)
       setToast(null)
       setSelectedCard(null)
-      setSelectedTarget('')
       setView('game')
     })
   }
@@ -321,7 +319,6 @@ export default function AutobusTab() {
       setActiveGameId(gameId)
       setToast(null)
       setSelectedCard(null)
-      setSelectedTarget('')
       setView('game')
     })
   }
@@ -341,18 +338,16 @@ export default function AutobusTab() {
       setActing(false)
       if (res?.error) { showAlert(res.error); return }
       setSelectedCard(null)
-      setSelectedTarget('')
     })
   }
 
-  const handleMatch = () => {
-    if (!selectedCard || !selectedTarget || acting) return
+  const handleMatch = (targetId) => {
+    if (!selectedCard || !targetId || acting) return
     setActing(true)
-    emit('matchCard', { card: selectedCard, targetPlayerId: selectedTarget }, (res) => {
+    emit('matchCard', { card: selectedCard, targetPlayerId: targetId }, (res) => {
       setActing(false)
       if (res?.error) { showAlert(res.error); return }
       setSelectedCard(null)
-      setSelectedTarget('')
     })
   }
 
@@ -363,7 +358,6 @@ export default function AutobusTab() {
       setActing(false)
       if (res?.error) { showAlert(res.error); return }
       setSelectedCard(null)
-      setSelectedTarget('')
     })
   }
 
@@ -615,24 +609,24 @@ export default function AutobusTab() {
             disabled={!gameState.isMyMatchTurn || acting}
           />
 
-          {/* Match target selector (only when card selected) */}
+          {/* Match target buttons (only when card selected) */}
           {gameState.isMyMatchTurn && selectedCard && (
-            <div className="mt-2 pt-2 border-t border-gray-700 space-y-1.5">
-              <div className="text-gray-400 text-[10px]">
-                Izabrana: {selectedCard.rank}{selectedCard.suit} — Daj pice:
+            <div className="mt-2 pt-2 border-t border-gray-700">
+              <div className="text-gray-400 text-[10px] mb-1.5">
+                {selectedCard.rank}{selectedCard.suit} — Kome dajes pice?
               </div>
-              <select
-                value={selectedTarget}
-                onChange={e => setSelectedTarget(e.target.value)}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-orange-500"
-              >
-                <option value="">-- Izaberi igraca --</option>
+              <div className="flex flex-wrap gap-1.5">
                 {gameState.players.map(p => (
-                  <option key={p.id} value={String(p.id)}>
-                    {getName(p)} (🍺 {p.drinks})
-                  </option>
+                  <button key={p.id} onClick={() => handleMatch(String(p.id))} disabled={acting}
+                    className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 text-white rounded-lg text-xs font-medium transition-colors">
+                    🍺 {getName(p)}
+                  </button>
                 ))}
-              </select>
+                <button onClick={() => setSelectedCard(null)}
+                  className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-xs transition-colors">
+                  ✕
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -646,32 +640,21 @@ export default function AutobusTab() {
             </button>
           ) : gameState.isMyMatchTurn && gameState.currentFlippedCard ? (
             <div className="space-y-2">
-              {gameState.canMatch ? (
-                <div className="text-center text-green-400 text-xs font-semibold">
-                  Imas match! Klikni kartu {gameState.currentFlippedCard.rank} iz ruke.
-                </div>
-              ) : (
-                <div className="text-center text-gray-500 text-[10px]">
-                  Trazi se: {gameState.currentFlippedCard.rank} — nemas u ruci
-                </div>
+              {!selectedCard && (
+                gameState.canMatch ? (
+                  <div className="text-center text-green-400 text-xs font-semibold">
+                    Imas match! Klikni kartu {gameState.currentFlippedCard.rank} iz ruke.
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-500 text-[10px]">
+                    Trazi se: {gameState.currentFlippedCard.rank} — nemas u ruci
+                  </div>
+                )
               )}
-              <div className="flex gap-2">
-                {selectedCard && selectedTarget ? (
-                  <button onClick={handleMatch} disabled={acting}
-                    className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-xl font-semibold text-sm transition-colors">
-                    ✅ Daj pice!
-                  </button>
-                ) : selectedCard ? (
-                  <button onClick={() => { setSelectedCard(null); setSelectedTarget('') }}
-                    className="px-3 py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-xl text-xs transition-colors">
-                    ✕ Odustani
-                  </button>
-                ) : null}
-                <button onClick={handlePass} disabled={acting}
-                  className="flex-1 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 disabled:from-gray-700 disabled:to-gray-700 text-white rounded-xl font-semibold text-sm transition-colors">
-                  Dalje ➡️
-                </button>
-              </div>
+              <button onClick={handlePass} disabled={acting || !!selectedCard}
+                className="w-full py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 disabled:from-gray-700 disabled:to-gray-700 text-white rounded-xl font-semibold text-sm transition-colors">
+                Dalje ➡️
+              </button>
             </div>
           ) : (
             <div className="py-2.5 text-center text-gray-500 text-[10px]">
