@@ -190,7 +190,7 @@ export default function AutobusTab() {
   const [toast, setToast] = useState(null)
 
   const socketRef = useRef(null)
-  const lastLogLenRef = useRef(0)
+  const lastLogTimeRef = useRef(0)
   const toastTimerRef = useRef(null)
   const tgUser = getTgUser()
   const playerId = String(tgUser?.id || 'dev_' + Math.random().toString(36).slice(2, 6))
@@ -248,11 +248,14 @@ export default function AutobusTab() {
   useEffect(() => {
     const log = gameState?.recentLog || []
     if (log.length === 0) return
-    if (log.length === lastLogLenRef.current) return
-    lastLogLenRef.current = log.length
 
     const latest = log[log.length - 1]
-    if (!latest) return
+    if (!latest || !latest.time) return
+
+    // Skip if we already showed this entry (compare by timestamp)
+    if (latest.time <= lastLogTimeRef.current) return
+    lastLogTimeRef.current = latest.time
+
     if (!['match', 'bus_guess', 'bus_start', 'bus_exit', 'game_end'].includes(latest.type)) return
 
     const toastType = latest.type === 'match' ? 'match'
@@ -260,10 +263,10 @@ export default function AutobusTab() {
       : latest.type === 'bus_guess' ? 'bus_wrong'
       : 'info'
 
-    setToast({ text: latest.text, type: toastType, key: Date.now() })
+    setToast({ text: latest.text, type: toastType, key: latest.time })
     clearTimeout(toastTimerRef.current)
     toastTimerRef.current = setTimeout(() => setToast(null), 3500)
-  }, [gameState?.recentLog])
+  }, [gameState])
 
   // ==================== FETCH LOBBY ====================
   const fetchLobby = useCallback(() => {
