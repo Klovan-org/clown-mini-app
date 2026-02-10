@@ -1,10 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { io } from 'socket.io-client'
 
-const API_BASE = import.meta.env.VITE_API_BASE || ''
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001'
 
-function getTgInitData() {
-  try { return window.Telegram?.WebApp?.initData || '' } catch { return '' }
-}
 function getTgUser() {
   try { return window.Telegram?.WebApp?.initDataUnsafe?.user || null } catch { return null }
 }
@@ -115,22 +113,22 @@ function PlayerList({ players, myId, busPlayerId, showDrinks = true }) {
   return (
     <div className="flex flex-wrap gap-1">
       {players.map(p => {
-        const isMe = String(p.user_id) === String(myId)
-        const isBus = String(p.user_id) === String(busPlayerId)
-        const name = p.first_name || p.username || 'Klovn'
+        const isMe = String(p.id) === String(myId)
+        const isBus = String(p.id) === String(busPlayerId)
         return (
-          <div key={p.user_id}
+          <div key={p.id}
             className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs ${
-              p.is_match_turn ? 'bg-orange-900/30 border-orange-600' :
+              p.isMatchTurn ? 'bg-orange-900/30 border-orange-600' :
               isMe ? 'bg-gray-700/80 border-gray-600' : 'bg-gray-700/40 border-gray-700'
             }`}>
             <span className="text-white font-medium truncate max-w-[80px]">
-              {isBus ? '🚌' : ''}{name}
+              {isBus ? '🚌' : ''}{p.name}
             </span>
             {isMe && <span className="text-orange-400 text-[10px]">TI</span>}
-            {p.is_match_turn && <span className="text-orange-400 text-[10px] animate-pulse">▶</span>}
-            <span className="text-gray-400">🃏{p.hand_count}</span>
-            {showDrinks && <span className="text-orange-400">🍺{p.drinks_received}</span>}
+            {p.isMatchTurn && <span className="text-orange-400 text-[10px] animate-pulse">▶</span>}
+            {!p.connected && <span className="text-red-400 text-[10px]">⚡</span>}
+            <span className="text-gray-400">🃏{p.handCount}</span>
+            {showDrinks && <span className="text-orange-400">🍺{p.drinks}</span>}
           </div>
         )
       })}
@@ -159,271 +157,189 @@ function BusProgress({ progress, maxProgress = 5 }) {
 // ==================== MAIN AUTOBUS TAB ====================
 export default function AutobusTab() {
   const [view, setView] = useState('lobby') // lobby | game
-  const [loading, setLoading] = useState(true)
+  const [connected, setConnected] = useState(false)
   const [acting, setActing] = useState(false)
-  const [lobbyData, setLobbyData] = useState(null)
+  const [lobbyGames, setLobbyGames] = useState([])
   const [gameState, setGameState] = useState(null)
   const [activeGameId, setActiveGameId] = useState(null)
   const [selectedCard, setSelectedCard] = useState(null)
   const [selectedTarget, setSelectedTarget] = useState('')
   const [lastFlavor, setLastFlavor] = useState(null)
 
+  const socketRef = useRef(null)
   const tgUser = getTgUser()
-  const initData = getTgInitData()
+  const playerId = String(tgUser?.id || 'dev_' + Math.random().toString(36).slice(2, 6))
+  const playerName = tgUser?.first_name || tgUser?.username || 'Klovn'
+
+  // ==================== SOCKET CONNECTION ====================
+  useEffect(() => {
+    const socket = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 20,
+    })
+    socketRef.current = socket
+
+    socket.on('connect', () => {
+      console.log('[Socket] Connected:', socket.id)
+      setConnected(true)
+      socket.emit('identify', { playerId, playerName })
+    })
+
+    socket.on('disconnect', (reason) => {
+      console.log('[Socket] Disconnected:', reason)
+      setConnected(false)
+    })
+
+    socket.on('gameState', (state) => {
+      setGameState(state)
+      if (state.game.state !== 'lobby') {
+        setActiveGameId(state.game.id)
+        setView('game')
+      }
+    })
+
+    socket.on('playerJoined', (data) => {
+      console.log('[Socket] Player joined:', data.playerName)
+      // Refresh lobby
+      socket.emit('listGames', (res) => {
+        if (res?.ok) setLobbyGames(res.games)
+      })
+    })
+
+    socket.on('playerLeft', (data) => {
+      console.log('[Socket] Player left:', data.playerId)
+    })
+
+    socket.on('gameEnded', (data) => {
+      console.log('[Socket] Game ended:', data.reason)
+    })
+
+    return () => {
+      socket.disconnect()
+    }
+  }, [])
 
   // ==================== FETCH LOBBY ====================
-  const fetchLobby = useCallback(async () => {
-    if (!initData) return
-    setLoading(true)
-    try {
-      const res = await fetch(`${API_BASE}/api/autobus?op=lobby`, {
-        headers: { 'x-telegram-init-data': initData }
-      })
-      if (!res.ok) throw new Error('Failed to load')
-      const data = await res.json()
-      setLobbyData(data)
-    } catch (err) {
-      console.error('Lobby fetch error:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [initData])
-
-  // ==================== FETCH GAME STATE ====================
-  const fetchGameState = useCallback(async (gameId) => {
-    if (!initData || !gameId) return
-    try {
-      const res = await fetch(`${API_BASE}/api/autobus?op=state&id=${gameId}`, {
-        headers: { 'x-telegram-init-data': initData }
-      })
-      if (!res.ok) throw new Error('Failed to load')
-      const data = await res.json()
-      setGameState(data)
-    } catch (err) {
-      console.error('Game state fetch error:', err)
-    }
-  }, [initData])
+  const fetchLobby = useCallback(() => {
+    const socket = socketRef.current
+    if (!socket?.connected) return
+    socket.emit('listGames', (res) => {
+      if (res?.ok) setLobbyGames(res.games)
+    })
+  }, [])
 
   useEffect(() => {
-    if (view === 'lobby') fetchLobby()
-  }, [view, fetchLobby])
-
-  // Game polling - only during active gameplay
-  useEffect(() => {
-    if (view !== 'game' || !activeGameId || !gameState) return
-    if (gameState.game.status !== 'active') return
-
-    const isBusPhase = gameState.game.current_phase === 'bus'
-    const isMyTurn = gameState.is_my_match_turn || gameState.is_bus_player
-    if (isMyTurn) return // Don't poll when it's my turn
-
-    const interval = 500
-    const timer = setInterval(() => fetchGameState(activeGameId), interval)
-    return () => clearInterval(timer)
-  }, [view, activeGameId, gameState, fetchGameState])
+    if (view === 'lobby' && connected) fetchLobby()
+  }, [view, connected, fetchLobby])
 
   // ==================== ACTIONS ====================
-  const handleCreate = async () => {
-    if (!initData) return
-    setActing(true)
-    try {
-      const res = await fetch(`${API_BASE}/api/autobus?op=create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData }
-      })
-      const data = await res.json()
-      if (!res.ok) { showAlert(data.error || 'Greska'); return }
-      showAlert('Igra kreirana! Cekaj da se igraci prikljuce.')
-      fetchLobby()
-    } catch (err) {
-      showAlert('Greska pri kreiranju igre')
-    } finally {
-      setActing(false)
-    }
+  const emit = (event, data, callback) => {
+    const socket = socketRef.current
+    if (!socket?.connected) { showAlert('Nisi povezan sa serverom'); return }
+    socket.emit(event, data, callback)
   }
 
-  const handleJoin = async (gameId) => {
-    if (!initData) return
+  const handleCreate = () => {
     setActing(true)
-    try {
-      const res = await fetch(`${API_BASE}/api/autobus?op=join&id=${gameId}`, {
-        method: 'POST',
-        headers: { 'x-telegram-init-data': initData }
-      })
-      const data = await res.json()
-      if (!res.ok) { showAlert(data.error || 'Greska'); return }
-      fetchLobby()
-    } catch (err) {
-      showAlert('Greska pri pridruzivanju')
-    } finally {
+    emit('createGame', (res) => {
       setActing(false)
-    }
+      if (res?.error) { showAlert(res.error); return }
+      setActiveGameId(res.gameId)
+      setLastFlavor(null)
+      setSelectedCard(null)
+      setSelectedTarget('')
+      setView('game')
+    })
   }
 
-  const handleStart = async (gameId) => {
-    if (!initData) return
+  const handleJoin = (gameId) => {
     setActing(true)
-    try {
-      const res = await fetch(`${API_BASE}/api/autobus?op=start&id=${gameId}`, {
-        method: 'POST',
-        headers: { 'x-telegram-init-data': initData }
-      })
-      const data = await res.json()
-      if (!res.ok) { showAlert(data.error || 'Greska'); return }
+    emit('joinGame', { gameId }, (res) => {
+      setActing(false)
+      if (res?.error) { showAlert(res.error); return }
       setActiveGameId(gameId)
       setLastFlavor(null)
       setSelectedCard(null)
       setSelectedTarget('')
-      await fetchGameState(gameId)
       setView('game')
-    } catch (err) {
-      showAlert('Greska pri pokretanju')
-    } finally {
-      setActing(false)
-    }
+    })
   }
 
-  const handleOpenGame = async (gameId) => {
-    setActiveGameId(gameId)
-    setLastFlavor(null)
-    setSelectedCard(null)
-    setSelectedTarget('')
-    await fetchGameState(gameId)
-    setView('game')
-  }
-
-  const handleFlip = async () => {
-    if (!initData || !activeGameId || acting) return
+  const handleStart = (gameId) => {
     setActing(true)
-    try {
-      const res = await fetch(`${API_BASE}/api/autobus?op=flip&id=${activeGameId}`, {
-        method: 'POST',
-        headers: { 'x-telegram-init-data': initData }
-      })
-      const data = await res.json()
-      if (!res.ok) { showAlert(data.error || 'Greska'); return }
-      // Optimistic: immediately update pyramid card as flipped
-      if (data.ok && data.card && gameState) {
-        setGameState(prev => {
-          if (!prev) return prev
-          const nextIndex = prev.game.current_card_index + 1
-          const newPyramid = prev.pyramid.map((c, i) =>
-            i === nextIndex ? { ...c, flipped: true, rank: data.card.rank, suit: data.card.suit } : c
-          )
-          return {
-            ...prev,
-            game: { ...prev.game, current_card_index: nextIndex, matching_done: false, match_turn_index: 0 },
-            pyramid: newPyramid,
-            current_flipped_card: { rank: data.card.rank, suit: data.card.suit, index: nextIndex, drinkValue: data.drink_value },
-            needs_flip: false,
-          }
-        })
-      }
-      setLastFlavor(`Okrenuta: ${data.card.rank}${data.card.suit} (${data.drink_value} cugova)`)
+    emit('startGame', { gameId }, (res) => {
+      setActing(false)
+      if (res?.error) { showAlert(res.error); return }
+    })
+  }
+
+  const handleFlip = () => {
+    if (acting) return
+    setActing(true)
+    emit('flipCard', (res) => {
+      setActing(false)
+      if (res?.error) { showAlert(res.error); return }
+      setLastFlavor(`Okrenuta: ${res.card.rank}${res.card.suit} (${res.drinkValue} cugova)`)
       setSelectedCard(null)
       setSelectedTarget('')
-      setActing(false)
-      // Background sync
-      fetchGameState(activeGameId)
-    } catch (err) {
-      showAlert('Greska pri okretanju karte')
-      setActing(false)
-    }
+    })
   }
 
-  const handleMatch = async () => {
-    if (!initData || !activeGameId || !selectedCard || !selectedTarget || acting) return
+  const handleMatch = () => {
+    if (!selectedCard || !selectedTarget || acting) return
     setActing(true)
-    try {
-      const res = await fetch(`${API_BASE}/api/autobus?op=match&id=${activeGameId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData },
-        body: JSON.stringify({ card: selectedCard, target_user_id: selectedTarget })
-      })
-      const data = await res.json()
-      if (!res.ok) { showAlert(data.error || 'Greska'); return }
-      // Optimistic: remove card from hand
-      if (gameState) {
-        const cardToRemove = selectedCard
-        setGameState(prev => {
-          if (!prev) return prev
-          const newHand = prev.my_hand.filter(c => !(c.rank === cardToRemove.rank && c.suit === cardToRemove.suit))
-          return { ...prev, my_hand: newHand, is_my_match_turn: false, can_match: false, matchable_cards: [] }
-        })
-      }
-      setLastFlavor(`Match! Dao si ${data.drinks_given} cug(ova)! Ostalo ti ${data.cards_left} karata.`)
+    emit('matchCard', { card: selectedCard, targetPlayerId: selectedTarget }, (res) => {
+      setActing(false)
+      if (res?.error) { showAlert(res.error); return }
+      setLastFlavor('Match!')
       setSelectedCard(null)
       setSelectedTarget('')
-      setActing(false)
-      fetchGameState(activeGameId)
-    } catch (err) {
-      showAlert('Greska pri matchovanju')
-      setActing(false)
-    }
+    })
   }
 
-  const handlePass = async () => {
-    if (!initData || !activeGameId || acting) return
+  const handlePass = () => {
+    if (acting) return
     setActing(true)
-    try {
-      const res = await fetch(`${API_BASE}/api/autobus?op=pass&id=${activeGameId}`, {
-        method: 'POST',
-        headers: { 'x-telegram-init-data': initData }
-      })
-      const data = await res.json()
-      if (!res.ok) { showAlert(data.error || 'Greska'); return }
-      // Optimistic: no longer my turn
-      setGameState(prev => prev ? { ...prev, is_my_match_turn: false, can_match: false, matchable_cards: [] } : prev)
+    emit('passCard', (res) => {
+      setActing(false)
+      if (res?.error) { showAlert(res.error); return }
       setSelectedCard(null)
       setSelectedTarget('')
-      setActing(false)
-      fetchGameState(activeGameId)
-    } catch (err) {
-      showAlert('Greska')
-      setActing(false)
-    }
+    })
   }
 
-  const handleBusGuess = async (guess) => {
-    if (!initData || !activeGameId || acting) return
+  const handleBusGuess = (guess) => {
+    if (acting) return
     setActing(true)
-    try {
-      const res = await fetch(`${API_BASE}/api/autobus?op=bus_guess&id=${activeGameId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData },
-        body: JSON.stringify({ guess })
-      })
-      const data = await res.json()
-      if (!res.ok) { showAlert(data.error || 'Greska'); return }
-      // Optimistic: update bus card and progress
-      if (data.new_card && gameState) {
-        setGameState(prev => {
-          if (!prev) return prev
-          return {
-            ...prev,
-            game: { ...prev.game, bus_current_card: data.new_card, bus_progress: data.bus_progress }
-          }
-        })
-      }
-      setLastFlavor(data.flavor_text)
+    emit('busGuess', { guess }, (res) => {
       setActing(false)
-      fetchGameState(activeGameId)
-    } catch (err) {
-      showAlert('Greska pri pogadjanju')
-      setActing(false)
-    }
+      if (res?.error) { showAlert(res.error); return }
+      setLastFlavor(res.flavorText)
+    })
   }
 
-  const getName = (p) => p?.first_name || p?.username || 'Klovn'
+  const handleLeave = () => {
+    emit('leaveGame', () => {
+      setGameState(null)
+      setActiveGameId(null)
+      setView('lobby')
+      fetchLobby()
+    })
+  }
 
-  // ==================== LOADING ====================
-  if (loading && !lobbyData && !gameState) {
+  const getName = (p) => p?.name || 'Klovn'
+
+  // ==================== CONNECTION STATUS ====================
+  if (!connected) {
     return (
-      <div className="flex justify-center items-center py-24">
+      <div className="flex flex-col justify-center items-center py-24 gap-3">
         <svg className="animate-spin h-8 w-8 text-orange-500" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
         </svg>
+        <div className="text-gray-400 text-xs">Povezivanje na server...</div>
       </div>
     )
   }
@@ -431,17 +347,54 @@ export default function AutobusTab() {
   // ==================== GAME VIEW ====================
   if (view === 'game' && gameState) {
     const g = gameState.game
-    const isFinished = g.status === 'finished'
-    const isPyramid = g.current_phase === 'pyramid'
-    const isBus = g.current_phase === 'bus'
-    const myId = String(gameState.my_id)
+    const isFinished = g.state === 'finished'
+    const isPyramid = g.state === 'pyramid'
+    const isBus = g.state === 'bus'
+    const isLobby = g.state === 'lobby'
+    const myId = String(gameState.myId)
+
+    // ===== LOBBY (waiting for players) =====
+    if (isLobby) {
+      const isCreator = g.createdBy === playerId
+      return (
+        <div className="max-w-md mx-auto p-3">
+          <div className="flex items-center justify-between mb-2">
+            <button onClick={handleLeave}
+              className="text-gray-400 hover:text-white text-sm">← Nazad</button>
+            <h3 className="text-white font-semibold text-sm">🚌 Soba {g.id}</h3>
+            <div />
+          </div>
+
+          <div className="bg-gray-800/80 rounded-xl p-4 border border-gray-700 mb-2 text-center">
+            <div className="text-2xl mb-2">⏳</div>
+            <div className="text-white font-bold mb-1">Cekanje igraca...</div>
+            <div className="text-gray-400 text-xs mb-3">{gameState.players.length}/8 igraca</div>
+            <div className="text-orange-400 text-xs font-mono mb-3">Kod: {g.id}</div>
+            <PlayerList players={gameState.players} myId={myId} />
+          </div>
+
+          {isCreator && gameState.players.length >= 1 && (
+            <button onClick={() => handleStart(g.id)} disabled={acting}
+              className="w-full py-2.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-600 disabled:to-gray-600 text-white rounded-xl font-semibold text-sm transition-all shadow-lg">
+              {acting ? 'Pokretanje...' : '▶️ Pokreni igru'}
+            </button>
+          )}
+
+          {!isCreator && (
+            <div className="text-center text-gray-500 text-xs py-2">
+              Cekas da kreator pokrene igru...
+            </div>
+          )}
+        </div>
+      )
+    }
 
     // ===== FINISHED VIEW =====
     if (isFinished) {
       return (
         <div className="max-w-md mx-auto p-3">
           <div className="flex items-center justify-between mb-2">
-            <button onClick={() => { setView('lobby'); fetchLobby() }}
+            <button onClick={handleLeave}
               className="text-gray-400 hover:text-white text-sm">← Nazad</button>
             <h3 className="text-white font-semibold text-sm">🚌 Klovn Autobus</h3>
             <div />
@@ -454,23 +407,23 @@ export default function AutobusTab() {
 
           <div className="bg-gray-800/80 rounded-xl p-3 border border-gray-700 mb-2">
             <h4 className="text-gray-300 font-semibold text-xs mb-1.5">🍺 Rezultati</h4>
-            <PlayerList players={gameState.players} myId={myId} busPlayerId={g.bus_player_id} />
+            <PlayerList players={gameState.players} myId={myId} busPlayerId={g.busPlayerId} />
           </div>
 
-          {gameState.recent_log?.length > 0 && (
+          {gameState.recentLog?.length > 0 && (
             <div className="bg-gray-800/80 rounded-xl p-3 border border-gray-700">
               <h4 className="text-gray-400 text-xs font-semibold mb-1">Poslednje akcije</h4>
               <div className="space-y-0.5 max-h-32 overflow-y-auto">
-                {gameState.recent_log.slice(0, 8).map((entry, i) => (
+                {gameState.recentLog.slice(0, 8).map((entry, i) => (
                   <div key={i} className="text-[10px] px-2 py-1 bg-gray-700/30 rounded text-gray-300">
-                    {entry.flavor_text || entry.action_type}
+                    {entry.text}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          <button onClick={() => { setView('lobby'); fetchLobby() }}
+          <button onClick={handleLeave}
             className="mt-2 w-full py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-semibold text-sm">
             Nazad u lobi
           </button>
@@ -480,18 +433,17 @@ export default function AutobusTab() {
 
     // ===== BUS PHASE VIEW =====
     if (isBus) {
-      const busPlayerInfo = gameState.players.find(p => String(p.user_id) === String(g.bus_player_id))
+      const busPlayerInfo = gameState.players.find(p => String(p.id) === String(g.busPlayerId))
       const busPlayerName = busPlayerInfo ? getName(busPlayerInfo) : 'Klovn'
-      const isMeBus = gameState.is_bus_player
+      const isMeBus = gameState.isBusPlayer
 
       return (
         <div className="max-w-md mx-auto p-3">
           <div className="flex items-center justify-between mb-2">
-            <button onClick={() => { setView('lobby'); fetchLobby() }}
+            <button onClick={handleLeave}
               className="text-gray-400 hover:text-white text-sm">← Nazad</button>
             <h3 className="text-white font-semibold text-sm">🚌 Autobus</h3>
-            <button onClick={() => fetchGameState(activeGameId)}
-              className="text-gray-400 hover:text-white text-sm">🔄</button>
+            <div />
           </div>
 
           {/* Bus header + current card inline */}
@@ -503,17 +455,17 @@ export default function AutobusTab() {
                 <div className="text-white font-bold text-sm">
                   🚌 {isMeBus ? 'TI si u autobusu!' : `${busPlayerName}`}
                 </div>
-                {isMeBus && g.bus_progress > 0 && (
+                {isMeBus && g.busProgress > 0 && (
                   <div className="text-red-400 text-[10px] mt-0.5">
-                    Promasaj = {g.bus_progress} cug(ova) 🍺
+                    Promasaj = {g.busProgress} cug(ova) 🍺
                   </div>
                 )}
               </div>
-              {g.bus_current_card && (
-                <Card rank={g.bus_current_card.rank} suit={g.bus_current_card.suit} />
+              {g.busCurrentCard && (
+                <Card rank={g.busCurrentCard.rank} suit={g.busCurrentCard.suit} />
               )}
             </div>
-            <BusProgress progress={g.bus_progress} />
+            <BusProgress progress={g.busProgress} />
           </div>
 
           {/* Guess buttons (only for bus player) */}
@@ -548,15 +500,15 @@ export default function AutobusTab() {
           {/* Players */}
           <div className="bg-gray-800/80 rounded-xl p-3 border border-gray-700 mb-2">
             <h4 className="text-gray-400 text-xs font-semibold mb-1.5">Igraci</h4>
-            <PlayerList players={gameState.players} myId={myId} busPlayerId={g.bus_player_id} />
+            <PlayerList players={gameState.players} myId={myId} busPlayerId={g.busPlayerId} />
           </div>
 
           {/* Recent log - compact */}
-          {gameState.recent_log?.length > 0 && (
+          {gameState.recentLog?.length > 0 && (
             <div className="space-y-0.5">
-              {gameState.recent_log.slice(0, 3).map((entry, i) => (
+              {gameState.recentLog.slice(0, 3).map((entry, i) => (
                 <div key={i} className="text-[10px] px-2 py-1 bg-gray-700/30 rounded text-gray-400">
-                  {entry.flavor_text || entry.action_type}
+                  {entry.text}
                 </div>
               ))}
             </div>
@@ -570,25 +522,24 @@ export default function AutobusTab() {
       <div className="max-w-md mx-auto p-3">
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
-          <button onClick={() => { setView('lobby'); fetchLobby() }}
+          <button onClick={handleLeave}
             className="text-gray-400 hover:text-white text-sm">← Nazad</button>
-          <h3 className="text-white font-semibold text-sm">🚌 Piramida {Math.max(0, g.current_card_index + 1)}/15</h3>
-          <button onClick={() => fetchGameState(activeGameId)}
-            className="text-gray-400 hover:text-white text-sm">🔄</button>
+          <h3 className="text-white font-semibold text-sm">🚌 Piramida {Math.max(0, g.currentCardIndex + 1)}/15</h3>
+          <div />
         </div>
 
         {/* Pyramid + current flipped card side by side */}
         <div className="bg-gray-800/80 rounded-xl p-2.5 border border-gray-700 mb-2">
           <div className="flex gap-3">
             <div className="flex-1">
-              <PyramidGrid pyramid={gameState.pyramid} currentCardIndex={g.current_card_index} />
+              <PyramidGrid pyramid={gameState.pyramid} currentCardIndex={g.currentCardIndex} />
             </div>
-            {gameState.current_flipped_card && (
+            {gameState.currentFlippedCard && (
               <div className="flex flex-col items-center justify-center gap-1 px-2">
                 <div className="text-gray-500 text-[10px]">Otvorena</div>
-                <Card rank={gameState.current_flipped_card.rank} suit={gameState.current_flipped_card.suit} />
+                <Card rank={gameState.currentFlippedCard.rank} suit={gameState.currentFlippedCard.suit} />
                 <div className="text-orange-400 text-[10px] font-bold">
-                  {gameState.current_flipped_card.drinkValue}x🍺
+                  {gameState.currentFlippedCard.drinkValue}x🍺
                 </div>
               </div>
             )}
@@ -596,7 +547,7 @@ export default function AutobusTab() {
         </div>
 
         {/* Flip button */}
-        {gameState.needs_flip && (
+        {gameState.needsFlip && (
           <button onClick={handleFlip} disabled={acting}
             className="w-full py-2.5 mb-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-600 disabled:to-gray-600 text-white rounded-xl font-semibold text-sm transition-all shadow-lg">
             {acting ? 'Okrecemo...' : '🃏 Okreni sledecu kartu'}
@@ -606,21 +557,21 @@ export default function AutobusTab() {
         {/* My hand */}
         <div className="bg-gray-800/80 rounded-xl p-2.5 border border-gray-700 mb-2">
           <div className="flex justify-between items-center mb-1.5">
-            <h4 className="text-gray-300 text-xs font-semibold">🃏 Tvoja ruka ({gameState.my_hand.length})</h4>
-            {gameState.is_my_match_turn && (
+            <h4 className="text-gray-300 text-xs font-semibold">🃏 Tvoja ruka ({gameState.myHand.length})</h4>
+            {gameState.isMyMatchTurn && (
               <span className="text-orange-400 text-[10px] animate-pulse font-bold">Tvoj red!</span>
             )}
           </div>
           <PlayerHand
-            hand={gameState.my_hand}
-            matchableCards={gameState.can_match ? gameState.matchable_cards : []}
+            hand={gameState.myHand}
+            matchableCards={gameState.canMatch ? gameState.matchableCards : []}
             onSelectCard={setSelectedCard}
             selectedCard={selectedCard}
-            disabled={!gameState.is_my_match_turn || acting}
+            disabled={!gameState.isMyMatchTurn || acting}
           />
 
           {/* Match controls */}
-          {gameState.is_my_match_turn && gameState.current_flipped_card && (
+          {gameState.isMyMatchTurn && gameState.currentFlippedCard && (
             <div className="mt-2 pt-2 border-t border-gray-700">
               {selectedCard ? (
                 <div className="space-y-1.5">
@@ -633,12 +584,11 @@ export default function AutobusTab() {
                     className="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-orange-500"
                   >
                     <option value="">-- Izaberi igraca --</option>
-                    {gameState.players
-                      .map(p => (
-                        <option key={p.user_id} value={String(p.user_id)}>
-                          {getName(p)} (🍺 {p.drinks_received})
-                        </option>
-                      ))}
+                    {gameState.players.map(p => (
+                      <option key={p.id} value={String(p.id)}>
+                        {getName(p)} (🍺 {p.drinks})
+                      </option>
+                    ))}
                   </select>
                   <div className="flex gap-1.5">
                     <button onClick={handleMatch}
@@ -654,7 +604,7 @@ export default function AutobusTab() {
                 </div>
               ) : (
                 <div className="flex gap-2 items-center">
-                  {gameState.can_match && (
+                  {gameState.canMatch && (
                     <div className="text-orange-400 text-[10px] flex-1">
                       Imas match! Klikni kartu.
                     </div>
@@ -669,7 +619,7 @@ export default function AutobusTab() {
           )}
 
           {/* Waiting for others to match */}
-          {!gameState.is_my_match_turn && !gameState.needs_flip && gameState.current_flipped_card && (
+          {!gameState.isMyMatchTurn && !gameState.needsFlip && gameState.currentFlippedCard && (
             <div className="mt-2 pt-2 border-t border-gray-700 text-center">
               <div className="text-gray-500 text-[10px]">
                 Cekas da drugi igraci match-uju ili pass-uju...
@@ -694,11 +644,6 @@ export default function AutobusTab() {
   }
 
   // ==================== LOBBY VIEW ====================
-  const myId = lobbyData?.my_id ? String(lobbyData.my_id) : String(tgUser?.id)
-  const myGames = lobbyData?.my_games || []
-  const openGames = lobbyData?.open_games || []
-  const recentFinished = lobbyData?.recent_finished || []
-
   return (
     <div className="max-w-md mx-auto p-3">
       {/* Header */}
@@ -708,14 +653,9 @@ export default function AutobusTab() {
             <h3 className="text-base font-semibold text-white">🚌 Klovn Autobus</h3>
             <p className="text-gray-400 text-xs">Drinking card game za 2-8 igraca!</p>
           </div>
-          <button onClick={fetchLobby} disabled={loading}
-            className="text-xl hover:scale-110 transition-transform disabled:opacity-50">
-            {loading ? (
-              <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-            ) : '🔄'}
+          <button onClick={fetchLobby}
+            className="text-xl hover:scale-110 transition-transform">
+            🔄
           </button>
         </div>
       </div>
@@ -726,57 +666,18 @@ export default function AutobusTab() {
         {acting ? 'Kreiranje...' : '🎮 Kreiraj novu igru'}
       </button>
 
-      {/* My active games */}
-      {myGames.length > 0 && (
-        <div className="bg-gray-800/80 rounded-xl p-3 border border-gray-700 mb-2">
-          <h4 className="text-green-400 font-semibold text-xs mb-1.5">🎮 Moje igre</h4>
-          {myGames.map(game => {
-            const isLobby = game.status === 'lobby'
-            const isCreator = String(game.created_by) === myId
-            const playerNames = (game.players || []).map(p => p.first_name || p.username || 'Klovn').join(', ')
-
-            return (
-              <div key={game.id} className="bg-gray-700/50 rounded-lg p-2.5 mb-1 border border-gray-600">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="text-white text-xs font-medium">
-                    {isLobby ? '⏳ Cekanje' : game.current_phase === 'bus' ? '🚌 Autobus' : '🔺 Piramida'}
-                  </span>
-                  <span className="text-gray-400 text-[10px]">
-                    {(game.players || []).length} igraca
-                  </span>
-                </div>
-                <div className="text-gray-400 text-[10px] mb-1.5 truncate">{playerNames}</div>
-                <div className="flex gap-2">
-                  {isLobby && isCreator && (game.players || []).length >= 1 && (
-                    <button onClick={() => handleStart(game.id)} disabled={acting}
-                      className="flex-1 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded-lg font-medium">
-                      ▶️ Pokreni
-                    </button>
-                  )}
-                  {!isLobby && (
-                    <button onClick={() => handleOpenGame(game.id)}
-                      className="flex-1 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs rounded-lg font-medium">
-                      Otvori →
-                    </button>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
       {/* Open games to join */}
-      {openGames.length > 0 && (
+      {lobbyGames.length > 0 && (
         <div className="bg-gray-800/80 rounded-xl p-3 border border-gray-700 mb-2">
           <h4 className="text-yellow-400 font-semibold text-xs mb-1.5">📨 Otvorene igre</h4>
-          {openGames.map(game => {
-            const creatorName = game.creator_name || game.creator_username || 'Klovn'
+          {lobbyGames.map(game => {
+            const creatorName = game.players?.[0]?.name || 'Klovn'
             return (
               <div key={game.id} className="flex items-center justify-between bg-gray-700/50 rounded-lg p-2.5 mb-1">
                 <div>
                   <span className="text-white text-xs">{creatorName}</span>
-                  <span className="text-gray-400 text-[10px] ml-1.5">{game.player_count}/8</span>
+                  <span className="text-gray-400 text-[10px] ml-1.5">{game.playerCount}/{game.maxPlayers}</span>
+                  <span className="text-gray-500 text-[10px] ml-1.5">#{game.id}</span>
                 </div>
                 <button onClick={() => handleJoin(game.id)} disabled={acting}
                   className="px-2.5 py-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-600 disabled:to-gray-600 text-white text-[10px] rounded-lg font-medium">
@@ -788,21 +689,8 @@ export default function AutobusTab() {
         </div>
       )}
 
-      {/* Recent finished */}
-      {recentFinished.length > 0 && (
-        <div className="bg-gray-800/80 rounded-xl p-3 border border-gray-700">
-          <h4 className="text-gray-400 font-semibold text-xs mb-1.5">🏁 Zavrsene igre</h4>
-          {recentFinished.map(game => (
-            <div key={game.id} className="flex items-center justify-between bg-gray-700/50 rounded-lg p-2 mb-1">
-              <span className="text-gray-300 text-xs">Igra #{game.id}</span>
-              <span className="text-gray-500 text-[10px]">Zavrsena</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Empty state */}
-      {myGames.length === 0 && openGames.length === 0 && (
+      {lobbyGames.length === 0 && (
         <div className="text-center py-6 text-gray-500">
           <div className="text-3xl mb-1">🚌</div>
           <p className="text-sm">Nema aktivnih igara. Kreiraj novu!</p>
