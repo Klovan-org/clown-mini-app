@@ -630,37 +630,43 @@ export default function AutobusTab() {
         </div>
 
         {/* Action buttons - ALWAYS visible, fixed position */}
-        <div className="flex gap-2 mb-2">
+        <div className="mb-2">
           {gameState.needsFlip ? (
             <button onClick={handleFlip} disabled={acting}
-              className="flex-1 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-600 disabled:to-gray-600 text-white rounded-xl font-semibold text-sm transition-all shadow-lg">
+              className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-600 disabled:to-gray-600 text-white rounded-xl font-semibold text-sm transition-all shadow-lg">
               {acting ? 'Okrecemo...' : '🃏 Okreni sledecu kartu'}
             </button>
           ) : gameState.isMyMatchTurn && gameState.currentFlippedCard ? (
-            <>
-              {selectedCard && selectedTarget ? (
-                <button onClick={handleMatch} disabled={acting}
-                  className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-xl font-semibold text-sm transition-colors">
-                  ✅ Daj pice!
-                </button>
+            <div className="space-y-2">
+              {gameState.canMatch ? (
+                <div className="text-center text-green-400 text-xs font-semibold">
+                  Imas match! Klikni kartu {gameState.currentFlippedCard.rank} iz ruke.
+                </div>
               ) : (
-                <div className="flex-1 py-2.5 text-center text-gray-500 text-xs">
-                  {gameState.canMatch ? 'Klikni kartu za match' : 'Nemas match'}
+                <div className="text-center text-gray-500 text-[10px]">
+                  Trazi se: {gameState.currentFlippedCard.rank} — nemas u ruci
                 </div>
               )}
-              {selectedCard && (
-                <button onClick={() => { setSelectedCard(null); setSelectedTarget('') }}
-                  className="px-3 py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-xl text-xs transition-colors">
-                  ✕
+              <div className="flex gap-2">
+                {selectedCard && selectedTarget ? (
+                  <button onClick={handleMatch} disabled={acting}
+                    className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-xl font-semibold text-sm transition-colors">
+                    ✅ Daj pice!
+                  </button>
+                ) : selectedCard ? (
+                  <button onClick={() => { setSelectedCard(null); setSelectedTarget('') }}
+                    className="px-3 py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-xl text-xs transition-colors">
+                    ✕ Odustani
+                  </button>
+                ) : null}
+                <button onClick={handlePass} disabled={acting}
+                  className="flex-1 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 disabled:from-gray-700 disabled:to-gray-700 text-white rounded-xl font-semibold text-sm transition-colors">
+                  Dalje ➡️
                 </button>
-              )}
-              <button onClick={handlePass} disabled={acting}
-                className="px-4 py-2.5 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded-xl text-xs font-medium transition-colors">
-                Dalje ➡️
-              </button>
-            </>
+              </div>
+            </div>
           ) : (
-            <div className="flex-1 py-2.5 text-center text-gray-500 text-[10px]">
+            <div className="py-2.5 text-center text-gray-500 text-[10px]">
               {gameState.currentFlippedCard ? 'Cekas druge igrace...' : ''}
             </div>
           )}
