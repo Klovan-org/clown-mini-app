@@ -15,6 +15,14 @@ function showAlert(message) {
 
 const SUIT_COLORS = { '♥️': 'text-red-500', '♦️': 'text-red-500', '♠️': 'text-gray-900', '♣️': 'text-gray-900' }
 
+// Inject fadeIn animation
+if (typeof document !== 'undefined' && !document.getElementById('toast-anim')) {
+  const style = document.createElement('style')
+  style.id = 'toast-anim'
+  style.textContent = '@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}'
+  document.head.appendChild(style)
+}
+
 // ==================== CARD COMPONENT ====================
 function Card({ rank, suit, flipped = true, small = false, highlighted = false, onClick, disabled }) {
   const sizeClass = small ? 'w-8 h-11 text-[10px]' : 'w-11 h-16 text-xs'
@@ -136,6 +144,21 @@ function PlayerList({ players, myId, busPlayerId, showDrinks = true }) {
   )
 }
 
+// ==================== TOAST NOTIFICATION ====================
+function Toast({ toast }) {
+  if (!toast) return null
+  const bgColor = toast.type === 'match' ? 'from-orange-600 to-orange-700'
+    : toast.type === 'bus_correct' ? 'from-green-600 to-green-700'
+    : toast.type === 'bus_wrong' ? 'from-red-600 to-red-700'
+    : 'from-gray-600 to-gray-700'
+
+  return (
+    <div key={toast.key} className={`bg-gradient-to-r ${bgColor} rounded-lg px-3 py-2 mb-2 text-center shadow-lg animate-[fadeIn_0.2s_ease-out]`}>
+      <p className="text-white text-sm font-semibold">{toast.text}</p>
+    </div>
+  )
+}
+
 // ==================== BUS PROGRESS ====================
 function BusProgress({ progress, maxProgress = 5 }) {
   return (
@@ -164,9 +187,11 @@ export default function AutobusTab() {
   const [activeGameId, setActiveGameId] = useState(null)
   const [selectedCard, setSelectedCard] = useState(null)
   const [selectedTarget, setSelectedTarget] = useState('')
-  const [lastFlavor, setLastFlavor] = useState(null)
+  const [toast, setToast] = useState(null)
 
   const socketRef = useRef(null)
+  const lastLogLenRef = useRef(0)
+  const toastTimerRef = useRef(null)
   const tgUser = getTgUser()
   const playerId = String(tgUser?.id || 'dev_' + Math.random().toString(36).slice(2, 6))
   const playerName = tgUser?.first_name || tgUser?.username || 'Klovn'
@@ -193,7 +218,24 @@ export default function AutobusTab() {
     })
 
     socket.on('gameState', (state) => {
-      setGameState(state)
+      setGameState(prev => {
+        // Detect new log entries for toast
+        const log = state.recentLog || []
+        const prevLog = prev?.recentLog || []
+        if (log.length > 0 && log.length !== prevLog.length) {
+          const latest = log[log.length - 1]
+          if (latest && ['match', 'bus_guess', 'bus_start', 'bus_exit', 'game_end'].includes(latest.type)) {
+            const toastType = latest.type === 'match' ? 'match'
+              : latest.type === 'bus_guess' && latest.text.includes('✅') ? 'bus_correct'
+              : latest.type === 'bus_guess' ? 'bus_wrong'
+              : 'info'
+            setToast({ text: latest.text, type: toastType, key: Date.now() })
+            clearTimeout(toastTimerRef.current)
+            toastTimerRef.current = setTimeout(() => setToast(null), 3500)
+          }
+        }
+        return state
+      })
       setActiveGameId(state.game.id)
       setView('game')
     })
@@ -249,7 +291,7 @@ export default function AutobusTab() {
       setActing(false)
       if (res?.error) { showAlert(res.error); return }
       setActiveGameId(res.gameId)
-      setLastFlavor(null)
+      setToast(null)
       setSelectedCard(null)
       setSelectedTarget('')
       setView('game')
@@ -262,7 +304,7 @@ export default function AutobusTab() {
       setActing(false)
       if (res?.error) { showAlert(res.error); return }
       setActiveGameId(gameId)
-      setLastFlavor(null)
+      setToast(null)
       setSelectedCard(null)
       setSelectedTarget('')
       setView('game')
@@ -283,7 +325,6 @@ export default function AutobusTab() {
     emit('flipCard', (res) => {
       setActing(false)
       if (res?.error) { showAlert(res.error); return }
-      setLastFlavor(`Okrenuta: ${res.card.rank}${res.card.suit} (${res.drinkValue} cugova)`)
       setSelectedCard(null)
       setSelectedTarget('')
     })
@@ -295,7 +336,6 @@ export default function AutobusTab() {
     emit('matchCard', { card: selectedCard, targetPlayerId: selectedTarget }, (res) => {
       setActing(false)
       if (res?.error) { showAlert(res.error); return }
-      setLastFlavor('Match!')
       setSelectedCard(null)
       setSelectedTarget('')
     })
@@ -318,7 +358,6 @@ export default function AutobusTab() {
     emit('busGuess', { guess }, (res) => {
       setActing(false)
       if (res?.error) { showAlert(res.error); return }
-      setLastFlavor(res.flavorText)
     })
   }
 
@@ -470,34 +509,28 @@ export default function AutobusTab() {
             <BusProgress progress={g.busProgress} />
           </div>
 
+          {/* Toast notification */}
+          <Toast toast={toast} />
+
           {/* Guess buttons (only for bus player) */}
-          {isMeBus && (
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <button onClick={() => handleBusGuess('higher')} disabled={acting}
-                className="py-3 rounded-xl font-bold bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-600 disabled:to-gray-600 text-white transition-all shadow-lg">
-                🔺 Veca
-              </button>
-              <button onClick={() => handleBusGuess('lower')} disabled={acting}
-                className="py-3 rounded-xl font-bold bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-600 disabled:to-gray-600 text-white transition-all shadow-lg">
-                🔻 Manja
-              </button>
-            </div>
-          )}
-
-          {/* Waiting message for spectators */}
-          {!isMeBus && (
-            <div className="text-center py-3 mb-2">
-              <div className="text-xl mb-1 animate-bounce">⏳</div>
-              <div className="text-gray-400 text-xs">Cekas {busPlayerName} da pogadja...</div>
-            </div>
-          )}
-
-          {/* Last action */}
-          {lastFlavor && (
-            <div className="bg-gray-700/50 rounded-lg p-2 mb-2 border border-gray-600 text-center">
-              <p className="text-orange-300 text-xs italic">"{lastFlavor}"</p>
-            </div>
-          )}
+          <div className="min-h-[52px] mb-2">
+            {isMeBus ? (
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => handleBusGuess('higher')} disabled={acting}
+                  className="py-3 rounded-xl font-bold bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-600 disabled:to-gray-600 text-white transition-all shadow-lg">
+                  🔺 Veca
+                </button>
+                <button onClick={() => handleBusGuess('lower')} disabled={acting}
+                  className="py-3 rounded-xl font-bold bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-600 disabled:to-gray-600 text-white transition-all shadow-lg">
+                  🔻 Manja
+                </button>
+              </div>
+            ) : (
+              <div className="text-center py-2">
+                <div className="text-gray-400 text-xs">Cekas {busPlayerName} da pogadja...</div>
+              </div>
+            )}
+          </div>
 
           {/* Players */}
           <div className="bg-gray-800/80 rounded-xl p-3 border border-gray-700 mb-2">
@@ -548,13 +581,18 @@ export default function AutobusTab() {
           </div>
         </div>
 
-        {/* Flip button */}
-        {gameState.needsFlip && (
-          <button onClick={handleFlip} disabled={acting}
-            className="w-full py-2.5 mb-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-600 disabled:to-gray-600 text-white rounded-xl font-semibold text-sm transition-all shadow-lg">
-            {acting ? 'Okrecemo...' : '🃏 Okreni sledecu kartu'}
-          </button>
-        )}
+        {/* Toast notification */}
+        <Toast toast={toast} />
+
+        {/* Flip button - fixed height area */}
+        <div className="min-h-[44px] mb-2">
+          {gameState.needsFlip && (
+            <button onClick={handleFlip} disabled={acting}
+              className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-600 disabled:to-gray-600 text-white rounded-xl font-semibold text-sm transition-all shadow-lg">
+              {acting ? 'Okrecemo...' : '🃏 Okreni sledecu kartu'}
+            </button>
+          )}
+        </div>
 
         {/* My hand */}
         <div className="bg-gray-800/80 rounded-xl p-2.5 border border-gray-700 mb-2">
@@ -572,10 +610,10 @@ export default function AutobusTab() {
             disabled={!gameState.isMyMatchTurn || acting}
           />
 
-          {/* Match controls */}
-          {gameState.isMyMatchTurn && gameState.currentFlippedCard && (
-            <div className="mt-2 pt-2 border-t border-gray-700">
-              {selectedCard ? (
+          {/* Match controls - fixed height area */}
+          <div className="mt-2 pt-2 border-t border-gray-700 min-h-[40px]">
+            {gameState.isMyMatchTurn && gameState.currentFlippedCard ? (
+              selectedCard ? (
                 <div className="space-y-1.5">
                   <div className="text-gray-400 text-[10px]">
                     Izabrana: {selectedCard.rank}{selectedCard.suit} — Daj pice:
@@ -616,26 +654,16 @@ export default function AutobusTab() {
                     Dalje (Pass)
                   </button>
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Waiting for others to match */}
-          {!gameState.isMyMatchTurn && !gameState.needsFlip && gameState.currentFlippedCard && (
-            <div className="mt-2 pt-2 border-t border-gray-700 text-center">
-              <div className="text-gray-500 text-[10px]">
-                Cekas da drugi igraci match-uju ili pass-uju...
+              )
+            ) : !gameState.needsFlip && gameState.currentFlippedCard ? (
+              <div className="text-center">
+                <div className="text-gray-500 text-[10px]">
+                  Cekas da drugi igraci match-uju ili pass-uju...
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* Last action */}
-        {lastFlavor && (
-          <div className="bg-gray-700/50 rounded-lg p-2 mb-2 border border-gray-600 text-center">
-            <p className="text-orange-300 text-xs italic">"{lastFlavor}"</p>
+            ) : null}
           </div>
-        )}
+        </div>
 
         {/* Players inline */}
         <div className="bg-gray-800/80 rounded-xl p-2.5 border border-gray-700">
