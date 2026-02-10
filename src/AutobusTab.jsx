@@ -249,21 +249,29 @@ export default function AutobusTab() {
     const log = gameState?.recentLog || []
     if (log.length === 0) return
 
-    const latest = log[log.length - 1]
-    if (!latest || !latest.time) return
+    const lastTime = lastLogTimeRef.current
+    // Update ref to latest time
+    const newestTime = log[log.length - 1]?.time || 0
+    if (newestTime <= lastTime) return
+    lastLogTimeRef.current = newestTime
 
-    // Skip if we already showed this entry (compare by timestamp)
-    if (latest.time <= lastLogTimeRef.current) return
-    lastLogTimeRef.current = latest.time
+    // Scan new entries backwards, find the most important toast-worthy one
+    const TOAST_TYPES = ['match', 'bus_guess', 'bus_start', 'bus_exit', 'game_end']
+    let toastEntry = null
+    for (let i = log.length - 1; i >= 0; i--) {
+      const entry = log[i]
+      if (!entry.time || entry.time <= lastTime) break
+      if (TOAST_TYPES.includes(entry.type)) { toastEntry = entry; break }
+    }
 
-    if (!['match', 'bus_guess', 'bus_start', 'bus_exit', 'game_end'].includes(latest.type)) return
+    if (!toastEntry) return
 
-    const toastType = latest.type === 'match' ? 'match'
-      : latest.type === 'bus_guess' && latest.text.includes('✅') ? 'bus_correct'
-      : latest.type === 'bus_guess' ? 'bus_wrong'
+    const toastType = toastEntry.type === 'match' ? 'match'
+      : toastEntry.type === 'bus_guess' && toastEntry.text.includes('✅') ? 'bus_correct'
+      : toastEntry.type === 'bus_guess' ? 'bus_wrong'
       : 'info'
 
-    setToast({ text: latest.text, type: toastType, key: latest.time })
+    setToast({ text: toastEntry.text, type: toastType, key: toastEntry.time })
     clearTimeout(toastTimerRef.current)
     toastTimerRef.current = setTimeout(() => setToast(null), 3500)
   }, [gameState])
