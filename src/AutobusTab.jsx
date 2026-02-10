@@ -302,13 +302,31 @@ export default function AutobusTab() {
       })
       const data = await res.json()
       if (!res.ok) { showAlert(data.error || 'Greska'); return }
-      setLastFlavor(data.ok ? `Okrenuta: ${data.card.rank}${data.card.suit} (${data.drink_value} cugova)` : null)
+      // Optimistic: immediately update pyramid card as flipped
+      if (data.ok && data.card && gameState) {
+        setGameState(prev => {
+          if (!prev) return prev
+          const nextIndex = prev.game.current_card_index + 1
+          const newPyramid = prev.pyramid.map((c, i) =>
+            i === nextIndex ? { ...c, flipped: true, rank: data.card.rank, suit: data.card.suit } : c
+          )
+          return {
+            ...prev,
+            game: { ...prev.game, current_card_index: nextIndex, matching_done: false, match_turn_index: 0 },
+            pyramid: newPyramid,
+            current_flipped_card: { rank: data.card.rank, suit: data.card.suit, index: nextIndex, drinkValue: data.drink_value },
+            needs_flip: false,
+          }
+        })
+      }
+      setLastFlavor(`Okrenuta: ${data.card.rank}${data.card.suit} (${data.drink_value} cugova)`)
       setSelectedCard(null)
       setSelectedTarget('')
-      await fetchGameState(activeGameId)
+      setActing(false)
+      // Background sync
+      fetchGameState(activeGameId)
     } catch (err) {
       showAlert('Greska pri okretanju karte')
-    } finally {
       setActing(false)
     }
   }
@@ -324,13 +342,22 @@ export default function AutobusTab() {
       })
       const data = await res.json()
       if (!res.ok) { showAlert(data.error || 'Greska'); return }
+      // Optimistic: remove card from hand
+      if (gameState) {
+        const cardToRemove = selectedCard
+        setGameState(prev => {
+          if (!prev) return prev
+          const newHand = prev.my_hand.filter(c => !(c.rank === cardToRemove.rank && c.suit === cardToRemove.suit))
+          return { ...prev, my_hand: newHand, is_my_match_turn: false, can_match: false, matchable_cards: [] }
+        })
+      }
       setLastFlavor(`Match! Dao si ${data.drinks_given} cug(ova)! Ostalo ti ${data.cards_left} karata.`)
       setSelectedCard(null)
       setSelectedTarget('')
-      await fetchGameState(activeGameId)
+      setActing(false)
+      fetchGameState(activeGameId)
     } catch (err) {
       showAlert('Greska pri matchovanju')
-    } finally {
       setActing(false)
     }
   }
@@ -345,12 +372,14 @@ export default function AutobusTab() {
       })
       const data = await res.json()
       if (!res.ok) { showAlert(data.error || 'Greska'); return }
+      // Optimistic: no longer my turn
+      setGameState(prev => prev ? { ...prev, is_my_match_turn: false, can_match: false, matchable_cards: [] } : prev)
       setSelectedCard(null)
       setSelectedTarget('')
-      await fetchGameState(activeGameId)
+      setActing(false)
+      fetchGameState(activeGameId)
     } catch (err) {
       showAlert('Greska')
-    } finally {
       setActing(false)
     }
   }
@@ -366,11 +395,21 @@ export default function AutobusTab() {
       })
       const data = await res.json()
       if (!res.ok) { showAlert(data.error || 'Greska'); return }
+      // Optimistic: update bus card and progress
+      if (data.new_card && gameState) {
+        setGameState(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            game: { ...prev.game, bus_current_card: data.new_card, bus_progress: data.bus_progress }
+          }
+        })
+      }
       setLastFlavor(data.flavor_text)
-      await fetchGameState(activeGameId)
+      setActing(false)
+      fetchGameState(activeGameId)
     } catch (err) {
       showAlert('Greska pri pogadjanju')
-    } finally {
       setActing(false)
     }
   }
