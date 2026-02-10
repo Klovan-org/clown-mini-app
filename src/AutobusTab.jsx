@@ -218,24 +218,7 @@ export default function AutobusTab() {
     })
 
     socket.on('gameState', (state) => {
-      setGameState(prev => {
-        // Detect new log entries for toast
-        const log = state.recentLog || []
-        const prevLog = prev?.recentLog || []
-        if (log.length > 0 && log.length !== prevLog.length) {
-          const latest = log[log.length - 1]
-          if (latest && ['match', 'bus_guess', 'bus_start', 'bus_exit', 'game_end'].includes(latest.type)) {
-            const toastType = latest.type === 'match' ? 'match'
-              : latest.type === 'bus_guess' && latest.text.includes('✅') ? 'bus_correct'
-              : latest.type === 'bus_guess' ? 'bus_wrong'
-              : 'info'
-            setToast({ text: latest.text, type: toastType, key: Date.now() })
-            clearTimeout(toastTimerRef.current)
-            toastTimerRef.current = setTimeout(() => setToast(null), 3500)
-          }
-        }
-        return state
-      })
+      setGameState(state)
       setActiveGameId(state.game.id)
       setView('game')
     })
@@ -260,6 +243,27 @@ export default function AutobusTab() {
       socket.disconnect()
     }
   }, [])
+
+  // ==================== TOAST FROM LOG ====================
+  useEffect(() => {
+    const log = gameState?.recentLog || []
+    if (log.length === 0) return
+    if (log.length === lastLogLenRef.current) return
+    lastLogLenRef.current = log.length
+
+    const latest = log[log.length - 1]
+    if (!latest) return
+    if (!['match', 'bus_guess', 'bus_start', 'bus_exit', 'game_end'].includes(latest.type)) return
+
+    const toastType = latest.type === 'match' ? 'match'
+      : latest.type === 'bus_guess' && latest.text.includes('✅') ? 'bus_correct'
+      : latest.type === 'bus_guess' ? 'bus_wrong'
+      : 'info'
+
+    setToast({ text: latest.text, type: toastType, key: Date.now() })
+    clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => setToast(null), 3500)
+  }, [gameState?.recentLog])
 
   // ==================== FETCH LOBBY ====================
   const fetchLobby = useCallback(() => {
@@ -584,16 +588,6 @@ export default function AutobusTab() {
         {/* Toast notification */}
         <Toast toast={toast} />
 
-        {/* Flip button - fixed height area */}
-        <div className="min-h-[44px] mb-2">
-          {gameState.needsFlip && (
-            <button onClick={handleFlip} disabled={acting}
-              className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-600 disabled:to-gray-600 text-white rounded-xl font-semibold text-sm transition-all shadow-lg">
-              {acting ? 'Okrecemo...' : '🃏 Okreni sledecu kartu'}
-            </button>
-          )}
-        </div>
-
         {/* My hand */}
         <div className="bg-gray-800/80 rounded-xl p-2.5 border border-gray-700 mb-2">
           <div className="flex justify-between items-center mb-1.5">
@@ -610,59 +604,63 @@ export default function AutobusTab() {
             disabled={!gameState.isMyMatchTurn || acting}
           />
 
-          {/* Match controls - fixed height area */}
-          <div className="mt-2 pt-2 border-t border-gray-700 min-h-[40px]">
-            {gameState.isMyMatchTurn && gameState.currentFlippedCard ? (
-              selectedCard ? (
-                <div className="space-y-1.5">
-                  <div className="text-gray-400 text-[10px]">
-                    Izabrana: {selectedCard.rank}{selectedCard.suit} — Daj pice:
-                  </div>
-                  <select
-                    value={selectedTarget}
-                    onChange={e => setSelectedTarget(e.target.value)}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-orange-500"
-                  >
-                    <option value="">-- Izaberi igraca --</option>
-                    {gameState.players.map(p => (
-                      <option key={p.id} value={String(p.id)}>
-                        {getName(p)} (🍺 {p.drinks})
-                      </option>
-                    ))}
-                  </select>
-                  <div className="flex gap-1.5">
-                    <button onClick={handleMatch}
-                      disabled={!selectedTarget || acting}
-                      className="flex-1 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg font-medium text-xs transition-colors">
-                      ✅ Match
-                    </button>
-                    <button onClick={() => { setSelectedCard(null); setSelectedTarget('') }}
-                      className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-xs transition-colors">
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex gap-2 items-center">
-                  {gameState.canMatch && (
-                    <div className="text-orange-400 text-[10px] flex-1">
-                      Imas match! Klikni kartu.
-                    </div>
-                  )}
-                  <button onClick={handlePass} disabled={acting}
-                    className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded-lg text-xs font-medium transition-colors">
-                    Dalje (Pass)
-                  </button>
-                </div>
-              )
-            ) : !gameState.needsFlip && gameState.currentFlippedCard ? (
-              <div className="text-center">
-                <div className="text-gray-500 text-[10px]">
-                  Cekas da drugi igraci match-uju ili pass-uju...
-                </div>
+          {/* Match target selector (only when card selected) */}
+          {gameState.isMyMatchTurn && selectedCard && (
+            <div className="mt-2 pt-2 border-t border-gray-700 space-y-1.5">
+              <div className="text-gray-400 text-[10px]">
+                Izabrana: {selectedCard.rank}{selectedCard.suit} — Daj pice:
               </div>
-            ) : null}
-          </div>
+              <select
+                value={selectedTarget}
+                onChange={e => setSelectedTarget(e.target.value)}
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-orange-500"
+              >
+                <option value="">-- Izaberi igraca --</option>
+                {gameState.players.map(p => (
+                  <option key={p.id} value={String(p.id)}>
+                    {getName(p)} (🍺 {p.drinks})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* Action buttons - ALWAYS visible, fixed position */}
+        <div className="flex gap-2 mb-2">
+          {gameState.needsFlip ? (
+            <button onClick={handleFlip} disabled={acting}
+              className="flex-1 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-600 disabled:to-gray-600 text-white rounded-xl font-semibold text-sm transition-all shadow-lg">
+              {acting ? 'Okrecemo...' : '🃏 Okreni sledecu kartu'}
+            </button>
+          ) : gameState.isMyMatchTurn && gameState.currentFlippedCard ? (
+            <>
+              {selectedCard && selectedTarget ? (
+                <button onClick={handleMatch} disabled={acting}
+                  className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-xl font-semibold text-sm transition-colors">
+                  ✅ Daj pice!
+                </button>
+              ) : (
+                <div className="flex-1 py-2.5 text-center text-gray-500 text-xs">
+                  {gameState.canMatch ? 'Klikni kartu za match' : 'Nemas match'}
+                </div>
+              )}
+              {selectedCard && (
+                <button onClick={() => { setSelectedCard(null); setSelectedTarget('') }}
+                  className="px-3 py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-xl text-xs transition-colors">
+                  ✕
+                </button>
+              )}
+              <button onClick={handlePass} disabled={acting}
+                className="px-4 py-2.5 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded-xl text-xs font-medium transition-colors">
+                Dalje ➡️
+              </button>
+            </>
+          ) : (
+            <div className="flex-1 py-2.5 text-center text-gray-500 text-[10px]">
+              {gameState.currentFlippedCard ? 'Cekas druge igrace...' : ''}
+            </div>
+          )}
         </div>
 
         {/* Players inline */}
