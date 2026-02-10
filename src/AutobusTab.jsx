@@ -194,10 +194,8 @@ export default function AutobusTab() {
 
     socket.on('gameState', (state) => {
       setGameState(state)
-      if (state.game.state !== 'lobby') {
-        setActiveGameId(state.game.id)
-        setView('game')
-      }
+      setActiveGameId(state.game.id)
+      setView('game')
     })
 
     socket.on('playerJoined', (data) => {
@@ -235,10 +233,14 @@ export default function AutobusTab() {
   }, [view, connected, fetchLobby])
 
   // ==================== ACTIONS ====================
-  const emit = (event, data, callback) => {
+  const emit = (event, dataOrCallback, callback) => {
     const socket = socketRef.current
     if (!socket?.connected) { showAlert('Nisi povezan sa serverom'); return }
-    socket.emit(event, data, callback)
+    if (typeof dataOrCallback === 'function') {
+      socket.emit(event, dataOrCallback)
+    } else {
+      socket.emit(event, dataOrCallback, callback)
+    }
   }
 
   const handleCreate = () => {
