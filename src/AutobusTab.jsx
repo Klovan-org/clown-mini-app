@@ -15,7 +15,7 @@ function showAlert(message) {
   } catch { alert(message) }
 }
 
-const SUIT_COLORS = { '♥️': 'text-red-500', '♦️': 'text-red-500', '♠️': 'text-white', '♣️': 'text-white' }
+const SUIT_COLORS = { '♥️': 'text-red-500', '♦️': 'text-red-500', '♠️': 'text-gray-900', '♣️': 'text-gray-900' }
 
 // ==================== CARD COMPONENT ====================
 function Card({ rank, suit, flipped = true, small = false, highlighted = false, onClick, disabled }) {
