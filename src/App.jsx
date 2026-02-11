@@ -164,7 +164,7 @@ function DashboardTab() {
   const usersWithLocation = users.filter(u => u.location).length
 
   return (
-    <div className="max-w-2xl mx-auto p-4 pb-24">
+    <div className="max-w-2xl mx-auto p-4 pb-36">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <input
@@ -218,7 +218,7 @@ function DashboardTab() {
       )}
 
       {/* Stats footer */}
-      <div className="fixed bottom-16 left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-800 p-3">
+      <div className="fixed bottom-[60px] left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-800 p-3 z-10">
         <div className="max-w-2xl mx-auto flex justify-around text-center">
           <div>
             <div className="text-orange-500 font-bold text-lg">{totalUsers}</div>
