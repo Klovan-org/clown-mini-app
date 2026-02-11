@@ -288,6 +288,13 @@ export default function AutobusTab() {
     if (view === 'lobby' && connected) fetchLobby()
   }, [view, connected, fetchLobby])
 
+  // Auto-refresh lobby every 3s
+  useEffect(() => {
+    if (view !== 'lobby' || !connected) return
+    const timer = setInterval(fetchLobby, 3000)
+    return () => clearInterval(timer)
+  }, [view, connected, fetchLobby])
+
   // ==================== ACTIONS ====================
   const emit = (event, dataOrCallback, callback) => {
     const socket = socketRef.current
