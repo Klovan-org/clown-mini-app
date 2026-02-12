@@ -191,6 +191,8 @@ export default function AutobusTab() {
   const socketRef = useRef(null)
   const lastLogTimeRef = useRef(0)
   const toastTimerRef = useRef(null)
+  const [reconnecting, setReconnecting] = useState(false)
+  const [reconnectAttempt, setReconnectAttempt] = useState(0)
   const tgUser = getTgUser()
   const playerId = String(tgUser?.id || 'dev_' + Math.random().toString(36).slice(2, 6))
   const playerName = tgUser?.first_name || tgUser?.username || 'Klovn'
@@ -201,19 +203,32 @@ export default function AutobusTab() {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 20,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: Infinity,
     })
     socketRef.current = socket
 
     socket.on('connect', () => {
       console.log('[Socket] Connected:', socket.id)
       setConnected(true)
+      setReconnecting(false)
+      setReconnectAttempt(0)
       socket.emit('identify', { playerId, playerName })
     })
 
     socket.on('disconnect', (reason) => {
       console.log('[Socket] Disconnected:', reason)
       setConnected(false)
+      setReconnecting(true)
+    })
+
+    socket.io.on('reconnect_attempt', (attempt) => {
+      setReconnectAttempt(attempt)
+    })
+
+    socket.io.on('reconnect', () => {
+      console.log('[Socket] Reconnected, re-identifying...')
+      socket.emit('identify', { playerId, playerName })
     })
 
     socket.on('gameState', (state) => {
@@ -286,6 +301,13 @@ export default function AutobusTab() {
 
   useEffect(() => {
     if (view === 'lobby' && connected) fetchLobby()
+  }, [view, connected, fetchLobby])
+
+  // Auto-refresh lobby every 3s
+  useEffect(() => {
+    if (view !== 'lobby' || !connected) return
+    const timer = setInterval(fetchLobby, 3000)
+    return () => clearInterval(timer)
   }, [view, connected, fetchLobby])
 
   // ==================== ACTIONS ====================
@@ -389,7 +411,12 @@ export default function AutobusTab() {
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
         </svg>
-        <div className="text-gray-400 text-xs">Povezivanje na server...</div>
+        <div className="text-gray-400 text-xs">
+          {reconnecting ? 'Ponovo povezivanje...' : 'Povezivanje na server...'}
+        </div>
+        {reconnecting && reconnectAttempt > 0 && (
+          <div className="text-gray-500 text-[10px]">Pokusaj #{reconnectAttempt}</div>
+        )}
       </div>
     )
   }
