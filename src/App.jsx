@@ -613,7 +613,7 @@ function ProfileTab() {
   }
 
   return (
-    <div className="max-w-md mx-auto p-4 pb-20">
+    <div className="max-w-md mx-auto p-4 pb-32">
       {/* Profile header */}
       <div className="bg-gray-800/80 rounded-2xl p-6 border border-gray-700 shadow-lg mb-4 text-center">
         {/* Clown image updates in real-time based on editLevel */}
@@ -1496,7 +1496,7 @@ export default function App() {
       </div>
 
       {/* Sticky tab navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-800 safe-area-inset-bottom">
+      <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-800 safe-area-inset-bottom z-50">
         <div className="flex">
           <button
             onClick={() => setActiveTab('dashboard')}
