@@ -164,7 +164,7 @@ function DashboardTab() {
   const usersWithLocation = users.filter(u => u.location).length
 
   return (
-    <div className="max-w-2xl mx-auto p-4 pb-36">
+    <div className="max-w-2xl mx-auto p-4 pb-40">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <input
@@ -218,7 +218,7 @@ function DashboardTab() {
       )}
 
       {/* Stats footer */}
-      <div className="fixed bottom-[60px] left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-800 p-3 z-10">
+      <div className="fixed bottom-[76px] left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-800 p-3 z-10">
         <div className="max-w-2xl mx-auto flex justify-around text-center">
           <div>
             <div className="text-orange-500 font-bold text-lg">{totalUsers}</div>
@@ -1496,75 +1496,75 @@ export default function App() {
       </div>
 
       {/* Sticky tab navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-800 safe-area-inset-bottom">
+      <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-800 safe-area-inset-bottom z-20">
         <div className="flex">
           <button
             onClick={() => setActiveTab('dashboard')}
-            className={`flex-1 py-4 text-center font-medium transition-colors ${
+            className={`flex-1 py-3 text-center font-medium transition-colors ${
               activeTab === 'dashboard'
                 ? 'text-orange-500 bg-orange-500/10'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <span className="text-xl">📊</span>
-            <div className="text-xs mt-1">Dashboard</div>
+            <span className="text-2xl">📊</span>
+            <div className="text-[11px] mt-0.5">Dashboard</div>
           </button>
           <button
             onClick={() => setActiveTab('edit-other')}
-            className={`flex-1 py-4 text-center font-medium transition-colors ${
+            className={`flex-1 py-3 text-center font-medium transition-colors ${
               activeTab === 'edit-other'
                 ? 'text-orange-500 bg-orange-500/10'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <span className="text-xl">✏️</span>
-            <div className="text-xs mt-1">Uredi klovna</div>
+            <span className="text-2xl">✏️</span>
+            <div className="text-[11px] mt-0.5">Uredi</div>
           </button>
           <button
             onClick={() => setActiveTab('profile')}
-            className={`flex-1 py-4 text-center font-medium transition-colors ${
+            className={`flex-1 py-3 text-center font-medium transition-colors ${
               activeTab === 'profile'
                 ? 'text-orange-500 bg-orange-500/10'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <span className="text-xl">🤡</span>
-            <div className="text-xs mt-1">Moj Profil</div>
+            <span className="text-2xl">🤡</span>
+            <div className="text-[11px] mt-0.5">Profil</div>
           </button>
           <button
             onClick={() => setActiveTab('spin')}
-            className={`flex-1 py-4 text-center font-medium transition-colors ${
+            className={`flex-1 py-3 text-center font-medium transition-colors ${
               activeTab === 'spin'
                 ? 'text-orange-500 bg-orange-500/10'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <span className="text-xl">🎰</span>
-            <div className="text-xs mt-1">Spin</div>
+            <span className="text-2xl">🎰</span>
+            <div className="text-[11px] mt-0.5">Spin</div>
           </button>
           {/* Duel tab hidden temporarily
           <button
             onClick={() => setActiveTab('duel')}
-            className={`flex-1 py-4 text-center font-medium transition-colors ${
+            className={`flex-1 py-3 text-center font-medium transition-colors ${
               activeTab === 'duel'
                 ? 'text-orange-500 bg-orange-500/10'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <span className="text-xl">⚔️</span>
-            <div className="text-xs mt-1">Duel</div>
+            <span className="text-2xl">⚔️</span>
+            <div className="text-[11px] mt-0.5">Duel</div>
           </button>
           */}
           <button
             onClick={() => setActiveTab('autobus')}
-            className={`flex-1 py-4 text-center font-medium transition-colors ${
+            className={`flex-1 py-3 text-center font-medium transition-colors ${
               activeTab === 'autobus'
                 ? 'text-orange-500 bg-orange-500/10'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <span className="text-xl">🚌</span>
-            <div className="text-xs mt-1">Autobus</div>
+            <span className="text-2xl">🚌</span>
+            <div className="text-[11px] mt-0.5">Autobus</div>
           </button>
         </div>
       </nav>
