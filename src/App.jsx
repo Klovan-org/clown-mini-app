@@ -1482,6 +1482,18 @@ export default function App() {
     }
   }, [])
 
+  // Guest mode: no Telegram — show only AutobusTab
+  const isTelegram = !!(window.Telegram?.WebApp?.initData && getTgUser())
+  if (!isTelegram) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-orange-900/30">
+        <div className="pt-2 pb-4">
+          <AutobusTab />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <AccessGate>
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-orange-900/30">
