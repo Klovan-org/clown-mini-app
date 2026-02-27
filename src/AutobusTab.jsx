@@ -386,15 +386,6 @@ export default function AutobusTab() {
     })
   }
 
-  const handleBusFinishedDrinking = () => {
-    if (acting) return
-    setActing(true)
-    emit('busFinishedDrinking', (res) => {
-      setActing(false)
-      if (res?.error) showAlert(res.error)
-    })
-  }
-
   const handleLeave = () => {
     emit('leaveGame', () => {
       setGameState(null)
@@ -546,17 +537,9 @@ export default function AutobusTab() {
           {/* Toast notification */}
           <Toast toast={toast} />
 
-          {/* Guess buttons / drinking confirmation */}
+          {/* Guess buttons */}
           <div className="min-h-[52px] mb-2">
-            {isMeBus && gameState.game.busDrinking ? (
-              <div className="text-center">
-                <div className="text-orange-300 font-bold text-sm mb-2">🍺 Pij!</div>
-                <button onClick={handleBusFinishedDrinking} disabled={acting}
-                  className="px-8 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-600 disabled:to-gray-600 text-white rounded-xl font-bold text-sm transition-all shadow-lg">
-                  {acting ? '...' : '✅ Popio!'}
-                </button>
-              </div>
-            ) : isMeBus ? (
+            {isMeBus ? (
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => handleBusGuess('higher')} disabled={acting}
                   className="py-3 rounded-xl font-bold bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-600 disabled:to-gray-600 text-white transition-all shadow-lg">
@@ -569,11 +552,7 @@ export default function AutobusTab() {
               </div>
             ) : (
               <div className="text-center py-2">
-                <div className="text-gray-400 text-xs">
-                  {gameState.game.busDrinking
-                    ? `Cekamo ${busPlayerName} da popije...`
-                    : `Cekas ${busPlayerName} da pogadja...`}
-                </div>
+                <div className="text-gray-400 text-xs">Cekas {busPlayerName} da pogadja...</div>
               </div>
             )}
           </div>
