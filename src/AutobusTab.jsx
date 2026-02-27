@@ -687,7 +687,7 @@ export default function AutobusTab() {
           ) : gameState.needsFlip ? (
             <button onClick={handleFlip} disabled={acting}
               className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-600 disabled:to-gray-600 text-white rounded-xl font-semibold text-sm transition-all shadow-lg">
-              {acting ? 'Okrecemo...' : '🃏 Okreni sledecu kartu'}
+              {acting ? 'Okrecemo...' : '🃏 Okreni prvu kartu'}
             </button>
           ) : gameState.isMyMatchTurn && gameState.currentFlippedCard ? (
             <div className="space-y-2">
