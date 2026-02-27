@@ -12,6 +12,12 @@ function showAlert(message) {
     else alert(message)
   } catch { alert(message) }
 }
+function getGuestSession() {
+  try { return JSON.parse(localStorage.getItem('clown_guest') || 'null') } catch { return null }
+}
+function saveGuestSession(id, name) {
+  try { localStorage.setItem('clown_guest', JSON.stringify({ id, name })) } catch {}
+}
 
 const SUIT_COLORS = { '♥️': 'text-red-500', '♦️': 'text-red-500', '♠️': 'text-gray-900', '♣️': 'text-gray-900' }
 
@@ -191,12 +197,22 @@ export default function AutobusTab() {
   const socketRef = useRef(null)
   const lastLogTimeRef = useRef(0)
   const toastTimerRef = useRef(null)
+
   const tgUser = getTgUser()
-  const playerId = String(tgUser?.id || 'dev_' + Math.random().toString(36).slice(2, 6))
-  const playerName = tgUser?.first_name || tgUser?.username || 'Klovn'
+  const [identity, setIdentity] = useState(() => {
+    if (tgUser) return { id: String(tgUser.id), name: tgUser.first_name || tgUser.username || 'Klovn' }
+    const guest = getGuestSession()
+    return guest || null
+  })
+  const [nameInput, setNameInput] = useState('')
+
+  const playerId = identity?.id
+  const playerName = identity?.name
 
   // ==================== SOCKET CONNECTION ====================
   useEffect(() => {
+    if (!identity) return
+
     const socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -208,7 +224,7 @@ export default function AutobusTab() {
     socket.on('connect', () => {
       console.log('[Socket] Connected:', socket.id)
       setConnected(true)
-      socket.emit('identify', { playerId, playerName })
+      socket.emit('identify', { playerId: identity.id, playerName: identity.name })
     })
 
     socket.on('disconnect', (reason) => {
@@ -241,7 +257,7 @@ export default function AutobusTab() {
     return () => {
       socket.disconnect()
     }
-  }, [])
+  }, [identity?.id])
 
   // ==================== TOAST FROM LOG ====================
   useEffect(() => {
@@ -386,6 +402,14 @@ export default function AutobusTab() {
     })
   }
 
+  const handleSetupSubmit = () => {
+    const name = nameInput.trim()
+    if (!name) return
+    const id = 'guest_' + Math.random().toString(36).slice(2, 8)
+    saveGuestSession(id, name)
+    setIdentity({ id, name })
+  }
+
   const handleLeave = () => {
     emit('leaveGame', () => {
       setGameState(null)
@@ -396,6 +420,37 @@ export default function AutobusTab() {
   }
 
   const getName = (p) => p?.name || 'Klovn'
+
+  // ==================== GUEST SETUP ====================
+  if (!identity) {
+    return (
+      <div className="max-w-md mx-auto p-4">
+        <div className="text-center mb-4">
+          <div className="text-4xl mb-2">🚌</div>
+          <h3 className="text-white font-bold text-base">Klovn Autobus</h3>
+          <p className="text-gray-400 text-xs mt-1">Unesi username da se pridruzis igri</p>
+        </div>
+        <div className="flex flex-col gap-3">
+          <input
+            type="text"
+            value={nameInput}
+            onChange={e => setNameInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSetupSubmit()}
+            placeholder="Tvoj username..."
+            maxLength={20}
+            autoFocus
+            className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 text-sm"
+          />
+          <button
+            onClick={handleSetupSubmit}
+            disabled={!nameInput.trim()}
+            className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-600 disabled:to-gray-600 text-white rounded-xl font-bold text-sm transition-all shadow-lg">
+            🎮 Pridruzi se
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   // ==================== CONNECTION STATUS ====================
   if (!connected) {
